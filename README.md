@@ -189,22 +189,23 @@ The following section will build the standalone project and observe it's behavio
     return 1;
     00EB184A  mov         eax,1  
     ```
-    > [!NOTE]
-    > You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`
 
-4. Click Step and observe we successfully entered into *good_func* at the entrypoint, a full demonstration of this is shown below:
+> [!NOTE]
+> You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`
+
+5. Click Step and observe we successfully entered into *good_func* at the entrypoint, a full demonstration of this is shown below:
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/92da4063-82ac-456a-8239-1adbcb0db781
 
-5. Now enable CFG, navigate to the Properties windows and `C/C++ -> Code Generation`.
+6. Now enable CFG, navigate to the Properties windows and `C/C++ -> Code Generation`.
 
     <img src="Images/ESAE4.png">
 
-6. Run the Local Debugger and set a breakpoint as discussed in [Building and Running](#building-and-running). Again we can see the address in the function pointer refers to the entrypoint of *good_func*.
+7. Run the Local Debugger and set a breakpoint as discussed in [Building and Running](#building-and-running). Again we can see the address in the function pointer refers to the entrypoint of *good_func*.
 
     <img src="Images/ESAE5.png">
 
-7. Right Click the window where the indirect function call occurs, select *Show Disassembly* we should see that the indirect call occurs directly, we do not perform any of the checks associated with CFG.
+8. Right Click the window where the indirect function call occurs, select *Show Disassembly* we should see that the indirect call occurs directly, we do not perform any of the checks associated with CFG.
 
     <img src="Images/ESAE6.png">
 
@@ -223,15 +224,15 @@ The following section will build the standalone project and observe it's behavio
     > [!NOTE]
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
-8. Click step and observe we successfully jump to the entrypoint of the *good_func* function, a full example is again shown below. Be sure to click step-into from the C file, otherwise we will need to step through the call to `__guard_check_icall_fptr` 
+9. Click step and observe we successfully jump to the entrypoint of the *good_func* function, a full example is again shown below. Be sure to click step-into from the C file, otherwise we will need to step through the call to `__guard_check_icall_fptr` 
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/59e25c90-76f3-4d09-9f64-8446370e4215
 
-9. Now *Uncomment* the `EDIT_WHITELIST` preprocessor definition.
+10. Now *Uncomment* the `EDIT_WHITELIST` preprocessor definition.
 
     <img src="Images/ESAE7.png">
 
-10. Rerun the previous test and observe the output, we should see it fail as shown below as we have removed *good_func* from the whitelist.
+11. Rerun the previous test and observe the output, we should see it fail as shown below as we have removed *good_func* from the whitelist.
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/3a0d9734-a789-4a4b-935a-a225d4200e11
 
@@ -259,18 +260,19 @@ The following section will build the standalone project and observe it's behavio
         return 1;
     001E184A  mov         eax,1 
     ```
-    > [!NOTE]
-    > You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`
 
-5. Now we can click Step-Into and observe the results. We can see a full run-through in the video below; as we are performing the indirect function call directly with a call instruction we can click Step-Into from the disassembly or C view.
+> [!NOTE]
+> You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`
+
+6. Now we can click Step-Into and observe the results. We can see a full run-through in the video below; as we are performing the indirect function call directly with a call instruction we can click Step-Into from the disassembly or C view.
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/7282a4d2-8c5a-4594-a667-906b5d1a74ea
 
-6. Now enable CFG, navigate to the Properties windows and `C/C++ -> Code Generation`.
+7. Now enable CFG, navigate to the Properties windows and `C/C++ -> Code Generation`.
 
     <img src="Images/ESAE4.png">
 
-7. We can right click the line containing the *indirect function call* and select the *Go to Disassembly*.
+8. We can right click the line containing the *indirect function call* and select the *Go to Disassembly*.
 
     <img src="Images/ESAE11.png">
 
@@ -288,11 +290,11 @@ The following section will build the standalone project and observe it's behavio
     > [!NOTE]
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
-8. Click step and observe we successfully jump to the entrypoint of *bad_func* even though it is not the original target of the indirect function call, this is because it is still in the whitelist of valid function entrypoints generated at compile time. We can see this in the video below. 
+9. Click step and observe we successfully jump to the entrypoint of *bad_func* even though it is not the original target of the indirect function call, this is because it is still in the whitelist of valid function entrypoints generated at compile time. We can see this in the video below. 
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/9c1a943e-7816-4b6a-a23a-6d9e6e6b9a8a
 
-9. Now we should *uncomment* the `EDIT_WHITELIST` preprocessor definition as we have done previously and run the program once again as shown below. Notice that it now throws an exception since we have removed it from the whitelist.
+10. Now we should *uncomment* the `EDIT_WHITELIST` preprocessor definition as we have done previously and run the program once again as shown below. Notice that it now throws an exception since we have removed it from the whitelist.
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/6122a5b5-3ab9-4c11-94d7-64be9a2bbcbb
 
@@ -320,21 +322,22 @@ The following section will build the standalone project and observe it's behavio
         return 1;
     00DA1856  mov         eax,1  
     ```
-    > [!NOTE]
-    > You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`
 
-5. Click *Step-Into*, we can do this from either the disassembly or C source code view. Observe that we jump into protected part of the *bad_func* function. The video below show the full process.
+> [!NOTE]
+> You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`
+
+6. Click *Step-Into*, we can do this from either the disassembly or C source code view. Observe that we jump into protected part of the *bad_func* function. The video below show the full process.
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/cc6c24aa-4155-46c1-b7b9-57dd702add91
 
     > [!NOTE]
     > As the function epilog assumes the preamble was executed it is likely the program crashes when it attempts to return from the function we jumped into the middle of.
 
-6. Now enable CFG, navigate to the Properties windows and `C/C++ -> Code Generation`.
+7. Now enable CFG, navigate to the Properties windows and `C/C++ -> Code Generation`.
 
     <img src="Images/ESAE4.png">
 
-7. We can right click the line containing the *indirect function call* and select the *Go to Disassembly*.
+8. We can right click the line containing the *indirect function call* and select the *Go to Disassembly*.
 
     <img src="Images/ESAE15.png">
 
@@ -352,7 +355,7 @@ The following section will build the standalone project and observe it's behavio
     > [!NOTE]
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
-8. We can now click *Step-Into* from the C View, if you do this from the disassembly view you will have to step through the call to `__guard_check_icall_fptr`. Below show the results of attempting to preform the indirect function call.
+9. We can now click *Step-Into* from the C View, if you do this from the disassembly view you will have to step through the call to `__guard_check_icall_fptr`. Below show the results of attempting to preform the indirect function call.
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/9f40da24-ac3d-4226-b34d-62ee548e48a1
 
