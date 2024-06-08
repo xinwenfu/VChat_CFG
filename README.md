@@ -50,13 +50,11 @@ Window's implementation of CFG using both compile-time operations, and runtime o
     - **Generating the private CFGBitmap information**: The compiler can identify a set of valid non-dynamically linked functions (private, compared to functions in shared module like those in a .dll file) and stores the relative virtual addresses (RVA) of these functions in the **Guard CF function table**. These RVAs will be converted to bitmap by the OS at runtime. This bitmap contains 1 bit for every 8 bytes in the program's process space [2]. A bit will be set to `1` if there is a function starting address in the 8-bytes associated with that bit; otherwise it will be set to 0 [2].
 - OS kernel support:
     - **Generating CFGBitmap**: This will be a *read-only* object that is created based on the entries in the *Guard CF function* table of the image that was generated at compile time and also incudes the shared module information gathered by the **dynamic linker**<!-- May be inaccurate to say dynamic linker --> when the image is loaded.
-        
-    > [!NOTE]
-    > The CFG Bitmap contains a shared and a private region. The shared region stores information relating to the DLLs (shared modules) which are loaded by the process and is shared between multiple processes. While the private region stores references to local functions within the executable. [2][10].
+    - **Handling the verification procedure**: If the target is invalid, an exception will be raised.        
+
+> [!NOTE]
+> The CFG Bitmap contains a shared and a private region. The shared region stores information relating to the DLLs (shared modules) which are loaded by the process and is shared between multiple processes. While the private region stores references to local functions within the executable. [2][10].
     
-
-    - **Handling the verification procedure**: If the target is invalid, an exception will be raised.
-
 ![An example pseudocode of CFG implementation [1]](/Images/cfg-pseudocode.jpg)
 
 ## Weaknesses
@@ -111,14 +109,14 @@ The following section will discuss the process of opening and configuring the st
 
         <img src="Images/ESAProp5.png">
 
-    > [!NOTE]
+    <!-- > [!NOTE] -->
     > We can see the *Debug Information Option* is set to *Program Database* `/Zi`, this is because the* Program Database for Edit And Continue* `/ZI` option is mutually exclusive with the CFG `/guard:cf` option used later.
 
    5. Although we are not exploiting SEH chains, we configure the project to use C style SEH chains in order to better reflect the environment of the VChat process.
 
         <img src="Images/ESAProp6.png">
 
-    > [!NOTE]
+    <!-- > [!NOTE] -->
     > The VC++ compiler may not allocate objects in the order they appear, additionally it may insert extra padding to preserve boundaries. We can see the padding behavior of structures based on a [/Zp Documentation](https://learn.microsoft.com/en-us/cpp/build/reference/zp-struct-member-alignment?view=msvc-170)
     > ![Padding](Images/StructPacking.png)
     > We can see that although our small buffer `buff` is 1 byte, due to padding there are 2 bytes between it and the function pointer. If we were to change the Struct Alignment to 1 byte `/Zp1` then they would be adjacent as shown below
@@ -162,7 +160,7 @@ The following section will build the standalone project and observe it's behavio
 
         <img src="Images/ESABuild4.png">
 
-    > [!NOTE]
+    <!-- > [!NOTE] -->
     > If you make changes to the source files, you can manually invoke the Visual Studio compiler to build the project, however when you click *Local Windows Debugger* it will automatically rebuild the project if changes are detected so that step can be omitted.
 
    3. There are a variety of controls and options available to us. For this demonstration we only need to use the *Step-Into* instruction shown below, and the *Stop Debugging* option which is the red square located nearby.
@@ -221,7 +219,7 @@ The following section will build the standalone project and observe it's behavio
     001E2289  mov         eax,1  
     ```
 
-    > [!NOTE]
+    <!-- > [!NOTE] -->
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
 9. Click step and observe we successfully jump to the entrypoint of the *good_func* function, a full example is again shown below. Be sure to click step-into from the C file, otherwise we will need to step through the call to `__guard_check_icall_fptr` 
@@ -287,7 +285,7 @@ The following section will build the standalone project and observe it's behavio
         return 1;
     00BF2289  mov         eax,1  
     ```
-    > [!NOTE]
+    <!-- > [!NOTE] -->
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
 9. Click step and observe we successfully jump to the entrypoint of *bad_func* even though it is not the original target of the indirect function call, this is because it is still in the whitelist of valid function entrypoints generated at compile time. We can see this in the video below. 
@@ -330,7 +328,7 @@ The following section will build the standalone project and observe it's behavio
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/cc6c24aa-4155-46c1-b7b9-57dd702add91
 
-    > [!NOTE]
+    <!-- > [!NOTE] -->
     > As the function epilog assumes the preamble was executed it is likely the program crashes when it attempts to return from the function we jumped into the middle of.
 
 7. Now enable CFG, navigate to the Properties windows and `C/C++ -> Code Generation`.
@@ -352,14 +350,14 @@ The following section will build the standalone project and observe it's behavio
         return 1;
     00AB2295  mov         eax,1  
     ```
-    > [!NOTE]
+    <!-- > [!NOTE] -->
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
 9. We can now click *Step-Into* from the C View, if you do this from the disassembly view you will have to step through the call to `__guard_check_icall_fptr`. Below show the results of attempting to preform the indirect function call.
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/9f40da24-ac3d-4226-b34d-62ee548e48a1
 
-    > [!NOTE]
+    <!-- > [!NOTE] -->
     > We can see the call to an address offset within a function is invalid. This is because the Whitelist contains the starting address of the function. If we attempt to perform an indirect jump to an address not contained in the whitelist the exception is thrown as was done in this case. 
 <!--
 > [!IMPORTANT]
@@ -387,7 +385,7 @@ This section will use a modified version of the [VChat TRUN ROP](https://github.
 
     <img src="Images/S4.png">
 
-    > [!NOTE]
+    <!-- > [!NOTE] -->
     > As DEP and ASLR are not the focus of this lab you can keep this disabled, or enable it. This does not affect the exploitation process until we enable CFG later. 
 
 5. Build the project with the shortcut `CTL+B` or by opening the `Build` window as shown below.
