@@ -412,8 +412,8 @@ This section will cover the steps used to setup the exploit, for more details on
 
         <img src="Images/VE1.png">
 
-    > [!NOTE]
-    > CFG is disabled, but we have enabled both DEP and NX to smooth over the later modifications needed when CFG is enabled. 
+> [!NOTE]
+> CFG is disabled, but we have enabled both DEP and NX to smooth over the later modifications needed when CFG is enabled. 
 
    2. Click the red arrow to start executing
 
@@ -506,7 +506,7 @@ This section will cover the steps used to setup the exploit, for more details on
 
     <video controls src="Videos/ROP-4.mp4" title="Title"></video>
 
-   1. Use the black *Go To Address in Disassembler* and enter in the address of the `ret` instruction you chose previously
+    1. Use the black *Go To Address in Disassembler* and enter in the address of the `ret` instruction you chose previously
 
         <img src="Images/VE12.png">
 
@@ -541,7 +541,7 @@ This section will cover the steps used to setup the exploit, for more details on
 
     <video controls src="Videos/ROP-5.mp4" title="Title"></video>
 
-   1. Use the black *Go To Address in Disassembler* and enter in the address of the sequence of `pop` instructions you chose previously.
+    1. Use the black *Go To Address in Disassembler* and enter in the address of the sequence of `pop` instructions you chose previously.
 
         <img src="Images/VE12.png">
 
@@ -571,8 +571,8 @@ This section will cover the steps used to setup the exploit, for more details on
         struct.pack('<L', 0x00403C02) # This will need to be a function in a module with CFG enabled
     )
     ```
-    > [!NOTE]
-    > We put the Shellcode after 2 bytes or more of `NOP` instructions to prevent any conflicts/overwrites the VirtualProtect function would cause.
+> [!NOTE]
+> We put the Shellcode after 2 bytes or more of `NOP` instructions to prevent any conflicts/overwrites the VirtualProtect function would cause.
 
 15. Start a Netcat listener on the Kali machine in a new terminal. 
     ```
@@ -637,15 +637,15 @@ This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we pr
 
         <img src="Images/VEC10.png">
 
-    > [!IMPORTANT]
-    > Notice how we **did not** hit the breakpoint, this means the exception was raised at the time we attempted to preform the indirect function call.
+> [!IMPORTANT]
+> Notice how we **did not** hit the breakpoint, this means the exception was raised at the time we attempted to preform the indirect function call.
 
    4. We can try running this in Visual Studio attached to a debugger to confirm this exception is thrown at the Indirect Function Call and is due to address we overwrote the original function pointer with.
 
         <img src="Images/VEC11.png">
 
-    > [!NOTE]
-    > The address we are overwriting the function pointer with my no longer valid due to the fact we enabled ASLR when compiling this project. As this is to give a more visual representation of the exception the address is not particularly important here as the exception will still be raised. In this case the location we pulled the series of POP instructions from did not appear to be randomized based on the additional information we could see when examining the function pointer local variable.
+> [!NOTE]
+> The address we are overwriting the function pointer with my no longer valid due to the fact we enabled ASLR when compiling this project. As this is to give a more visual representation of the exception the address is not particularly important here as the exception will still be raised. In this case the location we pulled the series of POP instructions from did not appear to be randomized based on the additional information we could see when examining the function pointer local variable.
 
 ## VChat Code
 > [!NOTE]
