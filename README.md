@@ -478,7 +478,7 @@ This section will cover the steps used to setup the exploit, for more details on
 
 8. Now modify your exploit program to reflect [exploit3.py](./SRC/Exploits/exploit3.py), we use this to verify that we are jumping to a `ret` instruction.
 
-    <video controls src="Videos/ROP-3.mp4" title="Title"></video>
+    https://github.com/DaintyJet/VChat_CFG/assets/60448620/683a4be6-534a-41c5-9ed6-203c31e93d32
 
    1. Use the black *Go To Address in Disassembler* and enter in the address of the `ret` instruction you chose previously
 
@@ -504,7 +504,7 @@ This section will cover the steps used to setup the exploit, for more details on
 
 10. Modify your exploit to reflect [exploit4.py](./SRC/Exploits/exploit4.py), we are using the function from the `rop_chains.txt`. We will need to be sure the return is `return b''.join(struct.pack('<I', _) for _ in rop_gadgets)` as without converting it to a byte string, we will receive errors! 
 
-    <video controls src="Videos/ROP-4.mp4" title="Title"></video>
+    https://github.com/DaintyJet/VChat_CFG/assets/60448620/d78f3f8b-833b-4398-9ab0-f45d4bc4588e
 
    1. Use the black *Go To Address in Disassembler* and enter in the address of the `ret` instruction you chose previously
 
@@ -539,7 +539,7 @@ This section will cover the steps used to setup the exploit, for more details on
 
 12. Modify your program to reflect [exploit5.py](./SRC/Exploits/exploit5.py), we have modified the address we overflow the function pointer to be the address of the 3 `POP` instructions followed by a `RETN`, and we have moved the ROP Chain to be 2 bytes from start of the buffer.
 
-    <video controls src="Videos/ROP-5.mp4" title="Title"></video>
+    https://github.com/DaintyJet/VChat_CFG/assets/60448620/23ab5693-0a65-4827-95ae-2da283157564
 
    1. Use the black *Go To Address in Disassembler* and enter in the address of the sequence of `pop` instructions you chose previously.
 
@@ -580,7 +580,7 @@ This section will cover the steps used to setup the exploit, for more details on
     ```
 16. Run the Exploit and observe the results! 
 
-    <video controls src="Videos/ROP-6.mp4" title="Title"></video>
+    https://github.com/DaintyJet/VChat_CFG/assets/60448620/5eb82fe9-ffdd-433f-a7bf-a8b7b69ddbbf
 
 ### CFG Enabled 
 This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we previously created. However, in this scenario we will enable the CFG protections we have previously disabled. This also means if you chose to do the previous section with DEP and ASLR disabled you will also need to enabled those protections for CFG to work properly and raise exceptions.
@@ -623,7 +623,7 @@ This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we pr
 
 7. Modify your [exploit6.py](./SRC/Exploits/exploit6.py) script to use the new address, run the script and observe the results.
 
-    <video controls src="Videos/CFG-ROP-1.mp4" title="Title"></video>
+    https://github.com/DaintyJet/VChat_CFG/assets/60448620/1948ff07-ca42-4d95-aa6b-1864109b072a
 
    1. Start a Netcat listener on the Kali machine in a new terminal. 
     ```
