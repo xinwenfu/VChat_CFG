@@ -646,7 +646,10 @@ This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we pr
 > The address we are overwriting the function pointer with my no longer valid due to the fact we enabled ASLR when compiling this project. As this is to give a more visual representation of the exception the address is not particularly important here as the exception will still be raised. In this case the location we pulled the series of POP instructions from did not appear to be randomized based on the additional information we could see when examining the function pointer local variable.
 
 ## VChat Code
+The following section discusses the source code of the VChat server, and should provide some insight as to why this exploit is possible. As the C language does not contain virtual functions natively we do not see the protection CFG would provide to the virtual function pointers.
 
+
+The first code snippet to be discuss concerns the reason the overflow is possible, when we are processing the `FUNCC` request we first allocate a 2048 byte buffer that will have up to 2048 bytes (characters) written to it. There is a memory leak here, but exploit that occurs in this scope, as we are just copying the received buffer into a newly allocated character buffer which will be passed to `Function5`. 
 ```c
 else if (strncmp(RecvBuf, "FUNCC", 5) == 0) {
 	/************************************************
@@ -665,6 +668,7 @@ else if (strncmp(RecvBuf, "FUNCC", 5) == 0) {
 ```
 
 
+The following structure is used in the CFG exploit `Function5`, this is added to prevent the optimizations Visual Studio does on the arrangement of local variables even when Optimizations are explicitly disabled. This ensures that the function pointer that contains the target of an indirect function call can be overflowed by the buffer. The *functionpointer* is a typedef of a function pointer for a signature `void ___(void)`.
 ```c
 /* Structure used in CFG exploit */
 typedef struct {
@@ -673,6 +677,7 @@ typedef struct {
 } function_auth;
 ```
 
+The following function is where the budder overflow and indirect function call occur. As the previously mentioned structure is used to store both the target buffer and the indirect function call when the buffer `user_auth.buff` is overflowed through the use of unbounded copy in `strcpy`, the function pointer `user_auth.tgt_func` will be overwritten. As the indirect function call is performed before `Function5` returns so we are not overflowing the return address to modify the flow of control. This also means we are not going to be adjusting the ESP, or EBP registers with the function epilog of `leave` and `retn`. When we overflow the function if we are not using an address of a function entrypoint then we will also not be using the function entrypoint which adjusts the ESP and EBP in that manner; this is one of the reasons our ROP exploit in this case looks a bit different from the previous implementation.  
 ```c
 void Function5(char* Input) {
 	function_auth usr_auth;
