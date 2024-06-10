@@ -365,7 +365,7 @@ The following section will build the standalone project and observe it's behavio
 -->
 ## VChat Exploitation
 > [!NOTE]
-> The *updated* VChat server will be required, ensure you are using Version `2.02` or greater.
+> The *updated* VChat server will be required, ensure you are using Version `2.12` or greater.
 
 This section will use a modified version of the [VChat TRUN ROP](https://github.com/DaintyJet/VChat_TRUN_ROP) walkthrough, as we will use CFG to guard against ROP attacks, as ASLR is enabled through the randomizing of the base address which is required for the CFG implemented by Windows to work and throw exceptions when accessing arbitrary memory locations. We will instead be exploiting the `FUNCC` command that has been added to the VChat server.
 ### Initial  VChat Configuration
@@ -646,8 +646,48 @@ This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we pr
 > The address we are overwriting the function pointer with my no longer valid due to the fact we enabled ASLR when compiling this project. As this is to give a more visual representation of the exception the address is not particularly important here as the exception will still be raised. In this case the location we pulled the series of POP instructions from did not appear to be randomized based on the additional information we could see when examining the function pointer local variable.
 
 ## VChat Code
-> [!NOTE]
-> This section is a Work In Progress and will be updated once completed.
+
+```c
+else if (strncmp(RecvBuf, "FUNCC", 5) == 0) {
+	/************************************************
+	  Begin CFG Exploit Function
+	************************************************/
+	char* FuncBuff = malloc(2048);
+	memset(FuncBuff, 0, 2048);
+	strncpy(FuncBuff, RecvBuf, 2048);
+	memset(RecvBuf, 0, DEFAULT_BUFLEN);
+	Function5(FuncBuff);
+	SendResult = send(Client, "FUNCC COMPLETE\n", 15, 0);
+	/************************************************
+	  End CFG Exploit Function
+	************************************************/
+}
+```
+
+
+```c
+/* Structure used in CFG exploit */
+typedef struct {
+	char buff[800];
+	funcionpointer tgt_func;
+} function_auth;
+```
+
+```c
+void Function5(char* Input) {
+	function_auth usr_auth;
+	usr_auth.tgt_func = good_function;
+
+	strcpy(usr_auth.buff, Input);
+
+	/* Call function pointer */
+	usr_auth.tgt_func(); 
+	return;
+}
+```
+
+
+
 ## References
 [[1] Control Flow Guard - Win32 app](https://docs.microsoft.com/en-us/windows/win32/secbp/control-flow-guard)
 
