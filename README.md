@@ -234,7 +234,7 @@ The following section will build the standalone project and observe it's behavio
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/3a0d9734-a789-4a4b-935a-a225d4200e11
 
-## Exercise 2
+### Exercise 2
 1. Ensure CFG is disabled, navigate to the Properties windows and `C/C++ -> Code Generation`.
 
     <img src="Images/ESAE1.png">
@@ -296,7 +296,7 @@ The following section will build the standalone project and observe it's behavio
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/6122a5b5-3ab9-4c11-94d7-64be9a2bbcbb
 
-## Exercise 3
+### Exercise 3
 1. Ensure CFG is disabled, navigate to the Properties windows and `C/C++ -> Code Generation`.
 
     <img src="Images/ESAE1.png">
@@ -363,6 +363,86 @@ The following section will build the standalone project and observe it's behavio
 > [!IMPORTANT]
 > Based on Current Testing the NXCompat flag `/NXCOMPAT` is required, the DynamicBase did not affect the /guard:cf flag. This does not align with the comments that the `/DYNAMICBASE` linker flag is required from the official [Microsoft Documentation](https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-control-flow-guard?view=msvc-170). We were able to successfully raise a Invalid Indirect Call Exception from the standalone code with `/DYNAMICBASE:NO` set to disable ASLR.
 -->
+## Checking CFG Enabled
+This section will use a VChat process with CFG enabled, be sure to disable it for the following section. Within this section we will cover the use of [dumpbin](https://learn.microsoft.com/en-us/cpp/build/reference/dumpbin-command-line?view=msvc-170) a CLI tool that can be used to examine the binary file and specific feilds in the PE format. We will also use [Process Explorer](https://learn.microsoft.com/en-us/sysinternals/downloads/process-explorer) and [Mona.py](https://www.corelan.be/index.php/2011/07/14/mona-py-the-manual/).
+
+### Dumpbin
+1. Enable CFG in VChat and recompile the binary.
+2. Open the Developer Powershell for Visual Studio
+
+    <img src="Images/EDB1.png">
+
+3. Navigate to the repository that contains the VChat exe.
+
+    <img src="Images/EDB2.png">
+
+4. Run the following command to dump the Headers of the VChat PE file.
+
+    ```
+    $ dumpbin /headers .\VChat.exe
+    ```
+    * `dumpbin`: Windows dumpbin utility.
+    * `/headers`: Dump headers for each section in the PE file.
+
+    <img src="Images/EDB3.png">
+
+5. See in the *Optional Header* under [*DLL Characteristics*](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#dll-characteristics) we have the **Control Flow Guard** characteristic flag set (`IMAGE_DLLCHARACTERISTICS_GUARD_CF`).
+
+    <img src="Images/EDB4.png">
+
+6. Run the following dumpbin command to dump the [structure](https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_load_config_directory32) that contains information on how the PE file is configured and loaded.
+
+    ```
+    $ dumpbin /LOADCONFIG VChat.exe
+    ```
+
+    <img src="Images/EDB5.png">
+
+7. Locate the entry `CF instrumented` in the Guard Flags entry, this further conforms that CFG is enabled and the code is instrumented to support it.
+
+    <img src="Images/EDB6.png">
+
+8. Scroll down till you see the *Guard CF Function Table*, this is the Whitelist that contains the valid function entrypoints.
+
+    <img src="Images/EDB7.png">
+
+### Process Explorer
+1. Enable CFG in VChat and recompile the binary if this has not already been done.
+2. Start VChat.
+3. Open Process Explorer
+
+    <img src="Images/EPE1.png">
+
+4. Right click an unoccupied space and select *Select Column*
+
+    <img src="Images/EPE2.png">
+
+5. Select *Control Flow Guard* and ony other options you would like and click *Ok*.
+
+    <img src="Images/EPE3.png">
+
+6. Observe VChat has CFG Enabled (And DEP)
+
+    <img src="Images/EPE4.png">
+
+### Mona.py
+1. Enable CFG in VChat and recompile the binary if this has not already been done.
+2. Open Immunity Debugger
+
+    <img src="Images/EM1.png">
+
+3. Launch and attach VChat to Immunity Debugger
+
+    <img src="Images/EM2.png">
+
+4. In the command line at the bottom of the GUI run `!mona mod` as shown below.
+
+    <img src="Images/EM3.png">
+
+5. Taking a closer look you can see the VChat EXE has CFG enabled, but the Essfun DLL does not! You would have to recompile the DLL and replace the one in the directory the VChat EXE is located in to make this change.
+
+    <img src="Images/EM4.png">
+
 ## VChat Exploitation
 > [!NOTE]
 > The *updated* VChat server will be required, ensure you are using Version `2.12` or greater.
