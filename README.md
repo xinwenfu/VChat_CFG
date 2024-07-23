@@ -47,23 +47,28 @@ Window's implementation of CFG using both compile-time operations, and runtime o
 
 - Compiler support:
     - **Code instrumentation**: Compiler inserts a check function *_guard_check_icall*, passing the target address of the indirect function call as an argument, before the indirect call occurs. This function verifies if the target function is in the white-list and will throw an exception if it is not.
-    - **Generating the private CFGBitmap information**: The compiler can identify a set of valid non-dynamically linked functions (private, compared to functions in shared module like those in a .dll file) and stores the relative virtual addresses (RVA) of these functions in the **Guard CF function table**. These RVAs will be converted to bitmap by the OS at runtime. This bitmap contains 1 bit for every 8 bytes in the program's process space [2]. A bit will be set to `1` if there is a function starting address in the 8-bytes associated with that bit; otherwise it will be set to 0 [2].
+    - **Generating the private CFGBitmap information**: The compiler can identify a set of valid non-dynamically linked functions (private, compared to functions in shared module like those in a .dll file) and stores the relative virtual addresses (RVA) of these functions in the **Guard CF function table**. These RVAs will be converted to bitmap by the OS at runtime. This bitmap contains 2 bits for every 16 bytes in the program's process space. One bit represent if there is a valid function in the 16-byte range and the other tells us if the function entrypoint is perfectly aligned on the 16-byte address represented or if it is within the 16-byte region this represents. The values are `0, 0` meaning there is no valid function in this 16-byte region, `1, 0` meaning there is a valid function in this 16-byte region and it is aligned *exactly* on this address, and finally we have `1, 1` meaning there is a valid function but is starts somewhere in the 16-byte region this represents. This final state is because the compiler due to the inclusion of inline assembly or our use of hand-written assembly may not always grantee that functions are aligned on the proper boundaries.
+
+> [!NOTE]
+> Old implementations of the CFG bitmap used 1 bit for every 8-bytes, and this simply represented if there was a function in that 8-byte region. Meaning we would have it set to `1` if there was a valid function or `0` if there was not a valid function entrypoint.
 - OS kernel support:
     - **Generating CFGBitmap**: This will be a *read-only* object that is created based on the entries in the *Guard CF function* table of the image that was generated at compile time and also incudes the shared module information gathered by the **dynamic linker**<!-- May be inaccurate to say dynamic linker --> when the image is loaded.
-    - **Handling the verification procedure**: If the target is invalid, an exception will be raised.        
+    - **Handling the verification procedure**: If the target is invalid, an exception will be raised.
 
 > [!NOTE]
 > The CFG Bitmap contains a shared and a private region. The shared region stores information relating to the DLLs (shared modules) which are loaded by the process and is shared between multiple processes. While the private region stores references to local functions within the executable. [2][10].
-    
+
 ![An example pseudocode of CFG implementation [1]](/Images/cfg-pseudocode.jpg)
 
+> [!IMPORTANT]
+> Programs that have CFG enabled will have a *large* virtual size, this is because the bitmaps 
 ## Weaknesses
 According to [2]:
 > 1. CFGBitmap is stored in a fixed address and can be easily retrieved from user mode code.
 > 2. If the main executable does not have CFG enabled, the process is not protected by CFG even if it loaded a CFG-enabled module.
 > 3. If a process’s main executable has disabled DEP (the process’s ExecuteEnable is enabled by compiled with /NXCOMPAT:NO), it will bypass the CFG violation handle, even if the indirect call target address is invalid.
-> 4. Every bit in the CFGBitmap represents eight bytes in the process space. So if
-an invalid target call address has less than eight bytes from the valid function
+> 4. Every bit in the CFGBitmap represents ~eight~ sixteen bytes in the process space. So if
+an invalid target call address has less than ~eight~ sixteen bytes from the valid function
 address, the CFG will think the target call address is “valid.”
 > 5. If the target function generated is dynamic (similar to JIT technology), the
 CFG implement doesn’t protect it. This is because NtAllocVirtualMemory will set all “1”s in CFGBitmap regions for the allocated executable virtual memory space (described in 4.c.i). It’s possible that customizing the CFGBitmap via MiCfgMarkValidEntries can address this issue.
@@ -72,6 +77,10 @@ Additional Weaknesses from [10]:
 > 1. Due to the implied trust granted to function pointers stored in *read-only* memory segments, if an attacker is able to modify those segments of memory and add a new entry to one like the Import Address Table, then they would be able to perform an indirect function call with it bypassing the CFG protections.
 > 2. CFG does not verify a function is what it claims to be, just that the address we will execute at is part of a whitelisted function's address space. This means if we are able to locate a whitelisted function, we may overwrite it, or the pointer to it (in the IAT for example) with an address to code that will transfer execution to some malicious code that was injected into the system. Windows CFG does not verify that functions signatures match, unlike the Clang CFI implementation which does [5].
 > 3. For kCFG to be enabled Virtualization Based Security must also be enabled on the system, However even if it is not enabled on the system indirect function calls will still be routed through the kCFG procedures/functions; these will perform a check to ensure the address we are attempting to reach is sign-extended (high bits generally 63-48 are `1`) meaning it is a kernel-space function, if they are not sign-extended this means we are attempting to jump to a user-space address and this will be denied.
+
+
+> [!IMPORTANT]
+> Starting in Windows 10 a page can be allocated with the protections `PAGE_TARGETS_NO_UPDATE` and or `PAGE_TARGETS_INVALID`. This can be used with Just In Time Compilers to first mark all allocations as invalid CFG targets `PAGE_TARGETS_INVALID` while also being able to modify the protections on the memory page without making the addresses valid CFG targets `PAGE_TARGETS_NO_UPDATE`. This way we can manually mark the compiled function entrypoints as valid with the [`SetProcessValidCallTargets(...)`](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-setprocessvalidcalltargets) function rather than letting all addresses in the allocated region be marked as valid.
 
 ## CFG Standalone
 This section will discuss the example program contained in this directory, this program is a *toy program* used to introduce the compiler options, and explore the behavior of a program that has the `/guard:cf` compiler flag enabled vs a program that does not have the `/guard:cf` flag enabled. The other options available for the Visual Studio compiler are configured to closely resemble the *VChat* project.
@@ -135,6 +144,14 @@ The following section will discuss the process of opening and configuring the st
 
     <img src="Images/ESAProp9.png">
 
+> [!IMPORTANT]
+> If a function has the `DECLSPEC_GUARD_SUPRESS` annotation then a special flag will be used in the bitmap to indicated the programmer never expects this function to be a target of a indirect call or jump instruction.
+>
+> We would annotate a function in the following manner:
+> ```
+> __declspec(guard(suppress)) void funcName(int arg1) { ... }
+> ```
+> The `__declspec(guard(suppress))` part of the declaration makes it so the CFG table does not include this function as a valid destination and marks is differently such that it will fail.
 ### Building and Running
 The following section will build the standalone project and observe it's behavior when modifying the project properties discussed earlier and running various indirect function calls.
 
@@ -424,6 +441,11 @@ This section will use a VChat process with CFG enabled, be sure to disable it fo
 6. Observe VChat has CFG Enabled (And DEP)
 
     <img src="Images/EPE4.png">
+
+> [!IMPORTANT]
+> Programs that have CFG enabled will have a *large* virtual size, this is because the required space to store the bitmap of the entire address space available to the process are *reserved* in memory. They are not in-use or loaded but they still affect the process's virtual size due to the fact they could be loaded into memory. 
+>
+> In 32-bit programs we require 32 MB on x86 systems (48 MB if `/LARGEADDRESAWARE`). A 32-bit program on a x86 system will require 2 TB (For Windows DLLs) + 64 MB (For Executable). A 64-bit process requires 2 TB.
 
 ### Mona.py
 1. Enable CFG in VChat and recompile the binary if this has not already been done.
@@ -793,3 +815,5 @@ void Function5(char* Input) {
 [[9] Bypassing Control Flow Guard in Windows 10](https://blog.improsec.com/tech-blog/bypassing-control-flow-guard-in-windows-10)
 
 [[10] The Current State of Exploit Development, Part 1](https://www.crowdstrike.com/blog/state-of-exploit-development-part-1/)
+
+[[11] Memory Protection Constants]https://learn.microsoft.com/en-us/windows/win32/Memory/memory-protection-constants
