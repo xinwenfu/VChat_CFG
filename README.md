@@ -1,5 +1,6 @@
 # Control Flow Guard
-*Notice*: Originally based off notes from [llan-OuO](https://github.com/llan-OuO).
+> [!NOTE]
+> Originally based off notes from [llan-OuO](https://github.com/llan-OuO).
 ---
 > "Ensure control flow integrity of indirect calls." - Microsoft
 
@@ -370,7 +371,7 @@ The following section will build the standalone project and observe it's behavio
     <!-- > [!NOTE] -->
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
-9. We can now click *Step-Into* from the C View, if you do this from the disassembly view you will have to step through the call to `__guard_check_icall_fptr`. Below show the results of attempting to preform the indirect function call.
+9. We can now click *Step-Into* from the C View, if you do this from the disassembly view you will have to step through the call to `__guard_check_icall_fptr`. Below show the results of attempting to perform the indirect function call.
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/9f40da24-ac3d-4226-b34d-62ee548e48a1
 
@@ -470,7 +471,7 @@ This section will use a VChat process with CFG enabled, be sure to disable it fo
 > The *updated* VChat server will be required, ensure you are using Version `2.12` or greater.
 
 This section will use a modified version of the [VChat TRUN ROP](https://github.com/DaintyJet/VChat_TRUN_ROP) walkthrough, as we will use CFG to guard against ROP attacks, as ASLR is enabled through the randomizing of the base address which is required for the CFG implemented by Windows to work and throw exceptions when accessing arbitrary memory locations. We will instead be exploiting the `FUNCC` command that has been added to the VChat server.
-### Initial  VChat Configuration
+### Initial VChat Configuration
 1. Open the VChat Visual Studio Project.
  
     <img src="Images/S1.png">
@@ -738,7 +739,7 @@ This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we pr
         <img src="Images/VEC10.png">
 
 > [!IMPORTANT]
-> Notice how we **did not** hit the breakpoint, this means the exception was raised at the time we attempted to preform the indirect function call.
+> Notice how we **did not** hit the breakpoint, this means the exception was raised at the time we attempted to perform the indirect function call.
 
    4. We can try running this in Visual Studio attached to a debugger to confirm this exception is thrown at the Indirect Function Call and is due to address we overwrote the original function pointer with.
 
@@ -746,6 +747,54 @@ This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we pr
 
 > [!NOTE]
 > The address we are overwriting the function pointer with my no longer valid due to the fact we enabled ASLR when compiling this project. As this is to give a more visual representation of the exception the address is not particularly important here as the exception will still be raised. In this case the location we pulled the series of POP instructions from did not appear to be randomized based on the additional information we could see when examining the function pointer local variable.
+
+
+## Attack Mitigation Table
+In this section we will discuss the effects a variety of defenses would have on *this specific attack* on the VChat server, specifically we will be discussing their effects on a buffer overflow that directly overwrites a return address and attempts to execute shellcode that has been written to the stack. We will make a note that these mitigations may be bypassed if the target application contains additional vulnerabilities such as a [format string vulnerability](https://owasp.org/www-community/attacks/Format_string_attack), or by using more complex exploits like [Return Oriented Programming (ROP)](https://github.com/DaintyJet/VChat_TRUN_ROP) which we use a variant of in this exploit.
+
+First, we will examine the effects of individual defenses on this exploit, and then we will examine the effects of a combination of these defenses on the VChat exploit.
+
+The mitigations we will be using in the following examination are:
+* [Buffer Security Check (GS)](https://github.com/DaintyJet/VChat_Security_Cookies): Security Cookies are inserted on the stack to detect when critical data such as the base pointer, return address or arguments have been overflowed. Integrity is checked on function return.
+* [Data Execution Prevention (DEP)](https://github.com/DaintyJet/VChat_DEP_Intro): Uses paged memory protection to mark all non-code (.text) sections as non-executable. This prevents shellcode on the stack or heap from being executed, as an exception will be raised.
+* [Address Space Layout Randomization (ASLR)](https://github.com/DaintyJet/VChat_ASLR_Intro): This mitigation makes it harder to locate where functions and datastructures are located as their region's starting address will be randomized. This is only done when the process is loaded, and if a DLL has ASLR enabled it will only have it's addresses randomized again when it is no longer in use and has been unloaded from memory.
+* [SafeSEH](https://github.com/DaintyJet/VChat_SEH): This is a protection for the Structured Exception Handing mechanism in Windows. It validates that the exception handler we would like to execute is contained in a table generated at compile time. 
+* [SEHOP](https://github.com/DaintyJet/VChat_SEH): This is a protection for the Structured Exception Handing mechanism in Windows. It validates the integrity of the SEH chain during a runtime check.
+* [Control Flow Guard (CFG)](https://github.com/DaintyJet/VChat_CFG): This mitigation verifies that indirect calls or jumps are performed to locations contained in a table generated at compile time. Examples of indirect calls or jumps include function pointers being used to call a function, or if you are using `C++` virtual functions, which would be considered indirect calls as you index a table of function pointers. 
+* [Heap Integrity Validation](https://github.com/DaintyJet/VChat_Heap_Defense): This mitigation verifies the integrity of a heap when operations are performed on the heap itself, such as allocations or frees of heap objects.
+### Individual Defenses: VChat Exploit 
+|Mitigation Level|Defense: Buffer Security Check (GS)|Defense: Data Execution Prevention (DEP)|Defense: Address Space Layout Randomization (ASLR) |Defense: SafeSEH| Defense: SEHOP | Defense: Heap Integrity Validation| Defense: Control Flow Guard (CFG)|
+|-|-|-|-|-|-|-|-|
+|No Effect|X| | |X |X | X| X| |
+|Partial Mitigation| |X|X| | | | |
+|Full Mitigation|| | | | | | |X|
+---
+
+|Mitigation Level|Defenses|
+|-|-|
+|No Effect|SafeSEH, SEHOP, and Heap Integrity Validation |
+|Partial Mitigation|Data Execution Prevention (DEP) or Address Space Layout Randomization |
+|Full Mitigation| Control Flow Guard (CFG) |
+* `Defense: Buffer Security Check (GS)`: This mitigation strategy does not prove effective as the control flow is diverted by an indirect call or jump before the function is able to properly return.
+* `Defense: Data Execution Prevention (DEP)`: As we perform a variation of a ROP attack in this exploit it is possible to bypass the DEP protections applied to a process, this is only effective if an attacker does not take this into account before attempting to execute shellcode on the stack.
+* `Defense: Address Space Layout Randomization (ASLR)`: This is partially effective as we use a ROP chain to bypass DEP protections which relys on gadgets whoes addresses are randomized. This increases the difficulty and reliability of generating ROP chains.
+* `Defense: SafeSEH`: This does not affect our exploit as we do not leverage Structured Exception Handling.
+* `Defense: SEHOP`: This does not affect our exploit as we do not leverage Structured Exception Handling.
+* `Defense: Heap Integrity Validation`: This does not affect our exploit as we do not leverage the Windows Heap.
+* `Defense: Control Flow Guard`: This mitigation if fully effective as it designed to prevent the attacker from leveraging indirect calls or jumps as we do here.
+> [!NOTE]
+> `Defense: Buffer Security Check (GS)`: If the application improperly initializes the global security cookie or contains additional vulnerabilities that can leak values on the stack, then this mitigation strategy can be bypassed.
+>
+> `Defense: Data Execution Prevention (DEP)`: If the attacker employs a [ROP Technique](https://github.com/DaintyJet/VChat_TRUN_ROP), then this defense can be bypassed.
+ ### Combined Defenses: VChat Exploit
+|Mitigation Level|Defense: Buffer Security Check (GS)|Defense: Data Execution Prevention (DEP)|Defense: Address Layout Randomization (ASLR) |Defense: SafeSEH| Defense: SEHOP | Defense: Heap Integrity Validation| Defense: Control Flow Guard (CFG)|
+|-|-|-|-|-|-|-|-|
+|Defense: Heap Integrity Validation| Defense: Control Flow Guard (CFG)|**No Increase**: We are not overwriting the return address of a function to gain control over the flow of execution. This does not affect CFG.|**Partial Increased Security**: DEP is bypassed with the ROP chain but this increases the complexity of the exploit.|**Partial Increased Security**: ASLR randomizes the address of gadgets between executions or system boots DLLs will not have their addresses randomized unless they are fully unloaded.|**No Increase**: The SEH feature is not exploited.|**No Increase**: The SEH feature is not exploited.|**No Increase**: The Windows Heap is not exploited.|X| |
+
+
+> [!NOTE] 
+> We omit repetitive rows representing the ineffective mitigation strategies as their cases are already covered.
+
 
 ## VChat Code
 The following section discusses the source code of the VChat server, and should provide some insight as to why this exploit is possible. As the C language does not contain virtual functions natively we do not see the protection CFG would provide to the virtual function pointers.
@@ -816,4 +865,4 @@ void Function5(char* Input) {
 
 [[10] The Current State of Exploit Development, Part 1](https://www.crowdstrike.com/blog/state-of-exploit-development-part-1/)
 
-[[11] Memory Protection Constants]https://learn.microsoft.com/en-us/windows/win32/Memory/memory-protection-constants
+[[11] Memory Protection Constants](https://learn.microsoft.com/en-us/windows/win32/Memory/memory-protection-constants)
