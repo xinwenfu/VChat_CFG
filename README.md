@@ -793,7 +793,7 @@ The mitigations we will be using in the following examination are:
  ### Combined Defenses: VChat Exploit
 |Mitigation Level|Defense: Buffer Security Check (GS)|Defense: Data Execution Prevention (DEP)|Defense: Address Layout Randomization (ASLR) |Defense: SafeSEH| Defense: SEHOP | Defense: Heap Integrity Validation| Defense: Control Flow Guard (CFG)|
 |-|-|-|-|-|-|-|-|
-|Defense: Heap Integrity Validation| Defense: Control Flow Guard (CFG)|**No Increase**: We are not overwriting the return address of a function to gain control over the flow of execution. This does not affect CFG.|**Partial Increased Security**: DEP is bypassed with the ROP chain but this increases the complexity of the exploit.|**Partial Increased Security**: ASLR randomizes the address of gadgets between executions or system boots DLLs will not have their addresses randomized unless they are fully unloaded.|**No Increase**: The SEH feature is not exploited.|**No Increase**: The SEH feature is not exploited.|**No Increase**: The Windows Heap is not exploited.|X| |
+|Defense: Control Flow Guard| Defense: Control Flow Guard (CFG)|**No Increase**: We are not overwriting the return address of a function to gain control over the flow of execution. This does not affect CFG.|**Partial Increased Security**: DEP is bypassed with the ROP chain but this increases the complexity of the exploit.|**Partial Increased Security**: ASLR randomizes the address of gadgets between executions or system boots DLLs will not have their addresses randomized unless they are fully unloaded.|**No Increase**: The SEH feature is not exploited.|**No Increase**: The SEH feature is not exploited.|**No Increase**: The Windows Heap is not exploited.|X| |
 
 
 > [!NOTE] 
