@@ -1,13 +1,13 @@
 # Control Flow Guard
 > [!NOTE]
-> Originally based off notes from [llan-OuO](https://github.com/llan-OuO).
+> Originally based on notes from [llan-OuO](https://github.com/llan-OuO).
 ---
 > "Ensure control flow integrity of indirect calls." - Microsoft
 
 Control flow guard (CFG) is Windows' implementation of [Control Flow Integrity (CFI)](https://en.wikipedia.org/wiki/Control-flow_integrity). Which can be distinguished from a "perfect" CFI implementation that protects the integrity of all indirect and direct branches, **CFG focuses on indirect branches** which can be expressed as **Indirect function calls**. 
 
 > [!NOTE]
-> Indirect Function Calls are calls to functions made with function pointers, below is an example of a Indirect function call in a toy C program. We do not show the main function or the definition of `some_function` for brevity!
+> Indirect Function Calls are calls to functions made with function pointers; below is an example of an Indirect function call in a toy C program. We do not show the main function or the definition of `some_function` for brevity!
 > ```c
 >   // This is a typedef of a function pointer to
 >   // make the allocation of an object easier!
@@ -26,34 +26,34 @@ Control flow guard (CFG) is Windows' implementation of [Control Flow Integrity (
 
 > “When Control Flow Integrity is implemented, it adds extra checks before a function pointer call is made and a return address is returned, making those the only valid places to return to,” DeMott said. “Microsoft didn’t feel it was necessary to fully implement Control Flow Integrity; Control Flow Guard protects function pointers only, not return addresses.” - [A report from Threatpost](https://threatpost.com/bypass-developed-for-microsoft-memory-protection-control-flow-guard/114768/)
 ## What is CFI
-Control Flow Integrity (CFI) ensures that the flow of execution follows a predetermined path created at the compile time of the program. CFI when implemented fully protects both indirect and direct function calls [4]. Indirect function calls are those using function pointers stored in memory, usually as part of a structure or as a variable. Indirect function calls include calls to functions that are located in a known *static* region of memory (determined at link-time), and calls to functions which are dynamically linked. CFI when *fully-implemented* protects both the call to the target function, verifying the target's ID and the return from the target function to the callee, ensuring the ID of the function we are returning to is one of the expected values [4].
+Control Flow Integrity (CFI) ensures that the flow of execution follows a predetermined path created at the compile time of the program. CFI, when implemented, fully protects both indirect and direct function calls [4]. Indirect function calls are those using function pointers stored in memory, usually as part of a structure or as a variable. Indirect function calls include calls to functions that are located in a known *static* region of memory (determined at link-time), and calls to functions which are dynamically linked. CFI when *fully-implemented* protects both the call to the target function, verifying the target's ID and the return from the target function to the callee, ensuring the ID of the function we are returning to is one of the expected values [4].
 
-There are implementations of CFI in [Clang](https://www.redhat.com/en/blog/fighting-exploits-control-flow-integrity-cfi-clang), which uses the Control-Flow graph at compile time to construct the whitelist for both indirect and direct function calls in addition to their returns [5][6]. This implementation ensures not only that a valid function address is targeted, but also that the intended target is the one this function should be making a call to. This implementation in Clang has been used on various programs compiled for [Android](https://source.android.com/docs/security/test/cfi) devices [7].
+There are implementations of CFI in [Clang](https://www.redhat.com/en/blog/fighting-exploits-control-flow-integrity-cfi-clang), which uses the Control-Flow graph at compile time to construct the whitelist for both indirect and direct function calls in addition to their returns [5][6]. This implementation ensures not only that a valid function address is targeted but also that the intended target is the one to which this function should be making a call. This implementation in Clang has been used on various programs compiled for [Android](https://source.android.com/docs/security/test/cfi) devices [7].
 
 > [!NOTE]
-> Clang's Implementation does not protect the backward-edge (return) of a function call for x86-64 architectures [3].
+> Clang's Implementation does not protect the backward edge (return) of a function call for x86-64 architectures [3].
 
 ## What can CFG do?
-CFG ensures that the destination addresses of any indirect function call also known as a *indirect jump* is a member of a predefined white list made at the compile time of the program - This whitelist is a mapping (in the format of bitmap named **CFGBitmap**) of all valid control flow targets, which marks all valid function entries of the process. Although, it should be noted that not all indirect function calls will have a CFG guard, those that are constant *read-only* values such as those in the Import Address Table (IAT) which are *read-only* do not require this additional check as they cannot be overwritten [3][10]. This can help to protect the target address of an indirect call from being corrupted with an invalid address. We should also be aware that CFG guards *only* the forward flow of control ensuring it is whitelisted - that is CFG does not protect the return addresses stored on the stack which are used to control the *backwards-edge* of the flow. Starting with Windows 10 Version 1702, the Windows Kernel has been compiled with CFG, which in the kernel level is known as kCFG [10].
+CFG ensures that the destination addresses of any indirect function call, also known as an *indirect jump* is a member of a predefined white list made at the compile time of the program. This whitelist is a mapping (in the format of bitmap named **CFGBitmap**) of all valid control flow targets, which marks all valid function entries of the process. Although it should be noted that not all indirect function calls will have a CFG guard, those that are constant *read-only* values such as those in the Import Address Table (IAT) which are *read-only* do not require this additional check as they cannot be overwritten [3][10]. This can help to protect the target address of an indirect call from being corrupted with an invalid address. We should also be aware that CFG guards *only* the forward flow of control, ensuring it is whitelisted - that is, CFG does not protect the return addresses stored on the stack, which are used to control the *backwards-edge* of the flow. Starting with Windows 10 Version 1702, the Windows Kernel has been compiled with CFG, which at the kernel level is known as kCFG [10].
 
 > [!NOTE]
-> Microsoft's implementation does not validate the type of argument provided to the function, so it is possible for us to call a function that takes a float as an argument `int some_float(float x)` with an integer as an argument. Additionally unlike Clang's implementation, it does not ensure the correct function is called, only that it is a member of the whitelist! You can see the behavior of Clang's implementation in [3].
+> Microsoft's implementation does not validate the type of argument provided to the function, so it is possible for us to call a function that takes a float as an argument `int some_float(float x)` with an integer as an argument. Additionally, unlike Clang's implementation, it does not ensure the correct function is called, only that it is a member of the whitelist! You can see the behavior of Clang's implementation in [3].
 
 ## How does Windows implement CFG?
 To make an application CFG-compatible, the application program must be compiled and linked with the [*/guard:cf*](https://docs.microsoft.com/en-us/cpp/build/reference/guard-enable-control-flow-guard?view=msvc-160&viewFallbackFrom=vs-2019) flag.
 
-Window's implementation of CFG using both compile-time operations, and runtime operations managed by the Operating System [2][3]. The compiler is responsible for creating the white-list and inserting additional checks to validate the address of the *indirect call*. While the Operating system is responsible for maintaining and verifying the mapping of whitelist-entries to their location in the process's memory space.
+Window's implementation of CFG uses both compile-time operations and runtime operations managed by the Operating System [2][3]. The compiler is responsible for creating the whitelist and inserting additional checks to validate the address of the indirect call, while the Operating system is responsible for maintaining and verifying the mapping of whitelist entries to their location in the process's memory space.
 
 <!-- CFG requires both compiler and runtime OS support. -->
 
 - Compiler support:
-    - **Code instrumentation**: Compiler inserts a check function *_guard_check_icall*, passing the target address of the indirect function call as an argument, before the indirect call occurs. This function verifies if the target function is in the white-list and will throw an exception if it is not.
-    - **Generating the private CFGBitmap information**: The compiler can identify a set of valid non-dynamically linked functions (private, compared to functions in shared module like those in a .dll file) and stores the relative virtual addresses (RVA) of these functions in the **Guard CF function table**. These RVAs will be converted to bitmap by the OS at runtime. This bitmap contains 2 bits for every 16 bytes in the program's process space. One bit represent if there is a valid function in the 16-byte range and the other tells us if the function entrypoint is perfectly aligned on the 16-byte address represented or if it is within the 16-byte region this represents. The values are `0, 0` meaning there is no valid function in this 16-byte region, `1, 0` meaning there is a valid function in this 16-byte region and it is aligned *exactly* on this address, and finally we have `1, 1` meaning there is a valid function but is starts somewhere in the 16-byte region this represents. This final state is because the compiler due to the inclusion of inline assembly or our use of hand-written assembly may not always grantee that functions are aligned on the proper boundaries.
+    - **Code instrumentation**: Compiler inserts a check function *_guard_check_icall*, passing the target address of the indirect function call as an argument before the indirect call occurs. This function verifies if the target function is on the white list and will throw an exception if it is not.
+    - **Generating the private CFGBitmap information**: The compiler can identify a set of valid non-dynamically linked functions (private, compared to functions in shared module like those in a .dll file) and stores the relative virtual addresses (RVA) of these functions in the **Guard CF function table**. These RVAs will be converted to bitmap by the OS at runtime. This bitmap contains 2 bits for every 16 bytes in the program's process space. One bit represents if there is a valid function in the 16-byte range, and the other tells us if the function entry point is perfectly aligned on the 16-byte address represented or if it is within the 16-byte region this represents. The values are `0, 0` meaning there is no valid function in this 16-byte region, `1, 0` meaning there is a valid function in this 16-byte region and it is aligned *exactly* on this address, and finally, we have `1, 1` meaning there is a valid function but is starts somewhere in the 16-byte region this represents. This final state is because the compiler, due to the inclusion of inline assembly or our use of hand-written assembly, may not always guarantee that functions are aligned on the proper boundaries.
 
 > [!NOTE]
 > Old implementations of the CFG bitmap used 1 bit for every 8-bytes, and this simply represented if there was a function in that 8-byte region. Meaning we would have it set to `1` if there was a valid function or `0` if there was not a valid function entrypoint.
 - OS kernel support:
-    - **Generating CFGBitmap**: This will be a *read-only* object that is created based on the entries in the *Guard CF function* table of the image that was generated at compile time and also incudes the shared module information gathered by the **dynamic linker**<!-- May be inaccurate to say dynamic linker --> when the image is loaded.
+    - **Generating CFGBitmap**: This will be a *read-only* object that is created based on the entries in the *Guard CF function* table of the image that was generated at compile time and also includes the shared module information gathered by the **dynamic linker**<!-- May be inaccurate to say dynamic linker --> when the image is loaded.
     - **Handling the verification procedure**: If the target is invalid, an exception will be raised.
 
 > [!NOTE]
@@ -72,16 +72,16 @@ According to [2]:
 an invalid target call address has less than ~eight~ sixteen bytes from the valid function
 address, the CFG will think the target call address is “valid.”
 > 5. If the target function generated is dynamic (similar to JIT technology), the
-CFG implement doesn’t protect it. This is because NtAllocVirtualMemory will set all “1”s in CFGBitmap regions for the allocated executable virtual memory space (described in 4.c.i). It’s possible that customizing the CFGBitmap via MiCfgMarkValidEntries can address this issue.
+CFG implementation doesn’t protect it. This is because NtAllocVirtualMemory will set all “1”s in CFGBitmap regions for the allocated executable virtual memory space (described in 4.c.i). It’s possible that customizing the CFGBitmap via MiCfgMarkValidEntries can address this issue.
 
 Additional Weaknesses from [10]:
 > 1. Due to the implied trust granted to function pointers stored in *read-only* memory segments, if an attacker is able to modify those segments of memory and add a new entry to one like the Import Address Table, then they would be able to perform an indirect function call with it bypassing the CFG protections.
-> 2. CFG does not verify a function is what it claims to be, just that the address we will execute at is part of a whitelisted function's address space. This means if we are able to locate a whitelisted function, we may overwrite it, or the pointer to it (in the IAT for example) with an address to code that will transfer execution to some malicious code that was injected into the system. Windows CFG does not verify that functions signatures match, unlike the Clang CFI implementation which does [5].
-> 3. For kCFG to be enabled Virtualization Based Security must also be enabled on the system, However even if it is not enabled on the system indirect function calls will still be routed through the kCFG procedures/functions; these will perform a check to ensure the address we are attempting to reach is sign-extended (high bits generally 63-48 are `1`) meaning it is a kernel-space function, if they are not sign-extended this means we are attempting to jump to a user-space address and this will be denied.
+> 2. CFG does not verify a function is what it claims to be, just that the address we will execute at is part of a whitelisted function's address space. This means if we are able to locate a whitelisted function, we may overwrite it or the pointer to it (in the IAT, for example) with an address to code that will transfer execution to some malicious code that was injected into the system. Windows CFG does not verify that function signatures match, unlike the Clang CFI implementation, which does [5].
+> 3. For kCFG to be enabled, Virtualization Based Security must also be enabled on the system, However, even if it is not enabled on the system, indirect function calls will still be routed through the kCFG procedures/functions; these will perform a check to ensure the address we are attempting to reach is sign-extended (high bits generally 63-48 are `1`) meaning it is a kernel-space function if they are not sign-extended this means we are attempting to jump to a user-space address and this will be denied.
 
 
 > [!IMPORTANT]
-> Starting in Windows 10 a page can be allocated with the protections `PAGE_TARGETS_NO_UPDATE` and or `PAGE_TARGETS_INVALID`. This can be used with Just In Time Compilers to first mark all allocations as invalid CFG targets `PAGE_TARGETS_INVALID` while also being able to modify the protections on the memory page without making the addresses valid CFG targets `PAGE_TARGETS_NO_UPDATE`. This way we can manually mark the compiled function entrypoints as valid with the [`SetProcessValidCallTargets(...)`](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-setprocessvalidcalltargets) function rather than letting all addresses in the allocated region be marked as valid.
+> Starting in Windows 10, a page can be allocated with the protections `PAGE_TARGETS_NO_UPDATE` and or `PAGE_TARGETS_INVALID`. This can be used with Just In Time Compilers to first mark all allocations as invalid CFG targets `PAGE_TARGETS_INVALID` while also being able to modify the protections on the memory page without making the addresses valid CFG targets `PAGE_TARGETS_NO_UPDATE`. This way we can manually mark the compiled function entrypoints as valid with the [`SetProcessValidCallTargets(...)`](https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-setprocessvalidcalltargets) function rather than letting all addresses in the allocated region be marked as valid.
 
 ## CFG Standalone
 This section will discuss the example program contained in this directory, this program is a *toy program* used to introduce the compiler options, and explore the behavior of a program that has the `/guard:cf` compiler flag enabled vs a program that does not have the `/guard:cf` flag enabled. The other options available for the Visual Studio compiler are configured to closely resemble the *VChat* project.
@@ -107,7 +107,7 @@ The following section will discuss the process of opening and configuring the st
 
         <img src="Images/ESAProp2.png">
 
-   2. The [*Basic Runtime Checks*](https://learn.microsoft.com/en-us/cpp/build/reference/rtc-run-time-error-checks?view=msvc-170) has been set to check for the use of *Uninitialized variables* `/RTCu`, this is because we cannot explicitly disable the Runtime Checks in the Visual Studio Project. By default a Visual Studio Project will also verify *Stack Frames* `/RTCs` when performing a buffer overflow as we do in the example project may raise an exception as it will detect the buffer overrun (overflow).
+   2. The [*Basic Runtime Checks*](https://learn.microsoft.com/en-us/cpp/build/reference/rtc-run-time-error-checks?view=msvc-170) has been set to check for the use of *Uninitialized variables* `/RTCu`, this is because we cannot explicitly disable the Runtime Checks in the Visual Studio Project. By default, a Visual Studio Project will also verify *Stack Frames* `/RTCs` when performing a buffer overflow as we do in the example project may raise an exception as it will detect the buffer overrun (overflow).
 
         <img src="Images/ESAProp3.png">
 
@@ -127,9 +127,9 @@ The following section will discuss the process of opening and configuring the st
         <img src="Images/ESAProp6.png">
 
     <!-- > [!NOTE] -->
-    > The VC++ compiler may not allocate objects in the order they appear, additionally it may insert extra padding to preserve boundaries. We can see the padding behavior of structures based on a [/Zp Documentation](https://learn.microsoft.com/en-us/cpp/build/reference/zp-struct-member-alignment?view=msvc-170)
+    > The VC++ compiler may not allocate objects in the order they appear. Additionally, it may insert extra padding to preserve boundaries. We can see the padding behavior of structures based on a [/Zp Documentation](https://learn.microsoft.com/en-us/cpp/build/reference/zp-struct-member-alignment?view=msvc-170)
     > ![Padding](Images/StructPacking.png)
-    > We can see that although our small buffer `buff` is 1 byte, due to padding there are 2 bytes between it and the function pointer. If we were to change the Struct Alignment to 1 byte `/Zp1` then they would be adjacent as shown below
+    > We can see that although our small buffer `buff` is 1 byte, due to padding, there are 2 bytes between it and the function pointer. If we were to change the Struct Alignment to 1 byte `/Zp1`, then they would be adjacent as shown below
     > ![alt text](Images/StructPacking2.png)
 
 5. Open the *Advanced* configuration window for the Linker `Linker -> Advanced`
@@ -146,7 +146,7 @@ The following section will discuss the process of opening and configuring the st
     <img src="Images/ESAProp9.png">
 
 > [!IMPORTANT]
-> If a function has the `DECLSPEC_GUARD_SUPRESS` annotation then a special flag will be used in the bitmap to indicated the programmer never expects this function to be a target of a indirect call or jump instruction.
+> If a function has the `DECLSPEC_GUARD_SUPRESS` annotation, then a special flag will be used in the bitmap to indicate the programmer never expects this function to be a target of an indirect call or jump instruction.
 >
 > We would annotate a function in the following manner:
 > ```
@@ -154,9 +154,9 @@ The following section will discuss the process of opening and configuring the st
 > ```
 > The `__declspec(guard(suppress))` part of the declaration makes it so the CFG table does not include this function as a valid destination and marks is differently such that it will fail.
 ### Building and Running
-The following section will build the standalone project and observe it's behavior when modifying the project properties discussed earlier and running various indirect function calls.
+The following section will build the standalone project and observe its behavior when modifying the project properties discussed earlier and running various indirect function calls.
 
-1. Build the project, you can use the keybind *Ctl+B*, `Build -> Build Solution` or `Build -> Build CFG-Standalone`
+1. Build the project. You can use the keybind *Ctl+B*, `Build -> Build Solution` or `Build -> Build CFG-Standalone`.
 
     <img src="Images/ESABuild1.png">
 
@@ -166,10 +166,10 @@ The following section will build the standalone project and observe it's behavio
 
 3. We have a number of preprocessor directives we can use to modify the behavior of the program. There are four that you need to be aware of; we control the behavior of the program by commenting or uncommenting them.
    * `#define E1 1`: The code will overflow the function pointer with the the *good_func* address which was already present; this acts like a control test case as it should always succeed unless we remove *good_func* from the whitelist.
-   * `#define E2 1`: The code will overflow the function pointer with the address of *bad_func* this will succeed if there is an entry in the whitelist. 
-   * `#define E3 1`: The code will overflow the function pointer with an address offset into *bad_func*, this should fail if CFG is enabled.
-   * `#define EDIT_WHTLIST`: The code will remove both *good_func* and *bad_func* from the whitelist and if CFG is enabled all previous test should fail. 
-4. We will run the program attached to the Visual Studio debugger for each of the test cases, this is so we can see the flow of the program, and where exceptions were thrown.
+   * `#define E2 1`: The code will overflow the function pointer with the address of *bad_func*. This will succeed if there is an entry on the whitelist. 
+   * `#define E3 1`: The code will overflow the function pointer with an address offset into *bad_func*. This should fail if CFG is enabled.
+   * `#define EDIT_WHTLIST`: The code will remove both *good_func* and *bad_func* from the whitelist, and if CFG is enabled, all previous tests should fail. 
+4. We will run the program attached to the Visual Studio debugger for each of the test cases, this is so we can see the flow of the program's execution, and where exceptions were thrown.
    1. Set a breakpoint at the indirect function call, this is done by *left-clicking* on the left-hand margin as shown below
 
         <img src="Images/ESABuild3.png">
@@ -194,7 +194,7 @@ The following section will build the standalone project and observe it's behavio
 
     <img src="Images/ESAE2.png">
 
-3. Right Click the window where the indirect function call occurs, select *Show Disassembly* we should see that the indirect call occurs directly, we do not perform any of the checks associated with CFG.
+3. Right-click the window where the indirect function call occurs and select "Show Disassembly". We should see that the indirect call occurs directly; we do not perform any of the checks associated with CFG.
 
     <img src="Images/ESAE3.png">
 
@@ -209,7 +209,7 @@ The following section will build the standalone project and observe it's behavio
 > [!NOTE]
 > You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`
 
-5. Click Step and observe we successfully entered into *good_func* at the entrypoint, a full demonstration of this is shown below:
+5. Click Step and observe we successfully entered into *good_func* at the entrypoint. A full demonstration of this is shown below:
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/92da4063-82ac-456a-8239-1adbcb0db781
 
@@ -221,7 +221,7 @@ The following section will build the standalone project and observe it's behavio
 
     <img src="Images/ESAE5.png">
 
-8. Right Click the window where the indirect function call occurs, select *Show Disassembly* we should see that the indirect call occurs directly, we do not perform any of the checks associated with CFG.
+8. Right-click the window where the indirect function call occurs and select "Show Disassembly". We should see that the indirect call occurs directly; we do not perform any of the checks associated with CFG.
 
     <img src="Images/ESAE6.png">
 
@@ -240,7 +240,7 @@ The following section will build the standalone project and observe it's behavio
     <!-- > [!NOTE] -->
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
-9. Click step and observe we successfully jump to the entrypoint of the *good_func* function, a full example is again shown below. Be sure to click step-into from the C file, otherwise we will need to step through the call to `__guard_check_icall_fptr` 
+9. Click step and observe we successfully jump to the entrypoint of the *good_func* function, a full example is again shown below. Be sure to click step-into from the C file, otherwise, we will need to step through the call to `__guard_check_icall_fptr` 
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/59e25c90-76f3-4d09-9f64-8446370e4215
 
@@ -315,7 +315,7 @@ The following section will build the standalone project and observe it's behavio
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/6122a5b5-3ab9-4c11-94d7-64be9a2bbcbb
 
 ### Exercise 3
-1. Ensure CFG is disabled, navigate to the Properties windows and `C/C++ -> Code Generation`.
+1. Ensure CFG is disabled; navigate to the Properties windows and `C/C++ -> Code Generation`.
 
     <img src="Images/ESAE1.png">
 
@@ -347,7 +347,7 @@ The following section will build the standalone project and observe it's behavio
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/cc6c24aa-4155-46c1-b7b9-57dd702add91
 
     <!-- > [!NOTE] -->
-    > As the function epilog assumes the preamble was executed it is likely the program crashes when it attempts to return from the function we jumped into the middle of.
+    > As the function epilog assumes the preamble was executed, it is likely the program crashes when it attempts to return from the function we jumped into the middle of.
 
 7. Now enable CFG, navigate to the Properties windows and `C/C++ -> Code Generation`.
 
@@ -371,7 +371,7 @@ The following section will build the standalone project and observe it's behavio
     <!-- > [!NOTE] -->
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
-9. We can now click *Step-Into* from the C View, if you do this from the disassembly view you will have to step through the call to `__guard_check_icall_fptr`. Below show the results of attempting to perform the indirect function call.
+9. We can now click *Step-Into* from the C View, if you do this from the disassembly view you will have to step through the call to `__guard_check_icall_fptr`. Below are the results of attempting to perform the indirect function call.
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/9f40da24-ac3d-4226-b34d-62ee548e48a1
 
@@ -416,7 +416,7 @@ This section will use a VChat process with CFG enabled, be sure to disable it fo
 
     <img src="Images/EDB5.png">
 
-7. Locate the entry `CF instrumented` in the Guard Flags entry, this further conforms that CFG is enabled and the code is instrumented to support it.
+7. Locate the entry `CF instrumented` in the Guard Flags entry. This further confirms that CFG is enabled and the code is instrumented to support it.
 
     <img src="Images/EDB6.png">
 
@@ -431,7 +431,7 @@ This section will use a VChat process with CFG enabled, be sure to disable it fo
 
     <img src="Images/EPE1.png">
 
-4. Right click an unoccupied space and select *Select Column*
+4. Right-click an unoccupied space and select *Select Column*
 
     <img src="Images/EPE2.png">
 
@@ -444,7 +444,7 @@ This section will use a VChat process with CFG enabled, be sure to disable it fo
     <img src="Images/EPE4.png">
 
 > [!IMPORTANT]
-> Programs that have CFG enabled will have a *large* virtual size, this is because the required space to store the bitmap of the entire address space available to the process are *reserved* in memory. They are not in-use or loaded but they still affect the process's virtual size due to the fact they could be loaded into memory. 
+> Programs that have CFG enabled will have a *large* virtual size; this is because the required space to store the bitmap of the entire address space available to the process is *reserved* in memory. They are not in-use or loaded but they still affect the process's virtual size due to the fact they could be loaded into memory. 
 >
 > In 32-bit programs we require 32 MB on x86 systems (48 MB if `/LARGEADDRESAWARE`). A 32-bit program on a x86 system will require 2 TB (For Windows DLLs) + 64 MB (For Executable). A 64-bit process requires 2 TB.
 
@@ -468,7 +468,7 @@ This section will use a VChat process with CFG enabled, be sure to disable it fo
 
 ## VChat Exploitation
 > [!NOTE]
-> The *updated* VChat server will be required, ensure you are using Version `2.12` or greater.
+> The *updated* VChat server will be required, so ensure you are using version `2.12` or greater.
 
 This section will use a modified version of the [VChat TRUN ROP](https://github.com/DaintyJet/VChat_TRUN_ROP) walkthrough, as we will use CFG to guard against ROP attacks, as ASLR is enabled through the randomizing of the base address which is required for the CFG implemented by Windows to work and throw exceptions when accessing arbitrary memory locations. We will instead be exploiting the `FUNCC` command that has been added to the VChat server.
 ### Initial VChat Configuration
@@ -489,7 +489,7 @@ This section will use a modified version of the [VChat TRUN ROP](https://github.
     <img src="Images/S4.png">
 
     <!-- > [!NOTE] -->
-    > As DEP and ASLR are not the focus of this lab you can keep this disabled, or enable it. This does not affect the exploitation process until we enable CFG later. 
+    > As DEP and ASLR are not the focus of this lab, you can keep this disabled or enable it. This does not affect the exploitation process until we enable CFG later. 
 
 5. Build the project with the shortcut `CTL+B` or by opening the `Build` window as shown below.
 
@@ -502,7 +502,10 @@ This section will use a modified version of the [VChat TRUN ROP](https://github.
 ### Exploit Setup and Non-CFG Observation
 This section will cover the steps used to setup the exploit, for more details on ROP Attacks see [VChat_ROP_Intro](https://github.com/DaintyJet/VChat_ROP_INTRO), and for a more detailed explanation of the exploitation process please see [VChat_TRUN_ROP](https://github.com/DaintyJet/VChat_TRUN_ROP) for a similar exploit. The main difference between this exploit and the *VChat_TRUN_ROP* is this exploit overflows a function pointer that is called, whereas the *VChat_TRUN_ROP* exploit overflows a return address.
 
-1. Generate a Cyclic Pattern, this is done so we will be able to tell where in memory the *Function Pointer* is stored so we can overwrite it with an address to start the ROP chain. We will use the [`pattern_create.rb`](https://github.com/rapid7/metasploit-framework/blob/master/tools/exploit/pattern_create.rb) in the Kali VM in order to find the *exact* location the function pointer is in by examining the value stored in the registers. We will use the following command on the Kali Machine:
+> [!NOTE]
+> At first CFG is disabled, but we have enabled both DEP and NX to smooth over the later modifications needed when CFG is enabled. 
+
+1. Generate a Cyclic Pattern; this is done so we will be able to tell where in memory the *Function Pointer* is stored so we can overwrite it with an address to start the ROP chain. We will use the [`pattern_create.rb`](https://github.com/rapid7/metasploit-framework/blob/master/tools/exploit/pattern_create.rb) in the Kali VM in order to find the *exact* location the function pointer is in by examining the value stored in the registers. We will use the following command on the Kali Machine:
 
     ```
     /usr/share/metasploit-framework/tools/exploit/pattern_create.rb -l 5000
@@ -512,9 +515,6 @@ This section will cover the steps used to setup the exploit, for more details on
    1. Attach Immunity Debugger to the VChat Process. 
 
         <img src="Images/VE1.png">
-
-> [!NOTE]
-> CFG is disabled, but we have enabled both DEP and NX to smooth over the later modifications needed when CFG is enabled. 
 
    2. Click the red arrow to start executing
 
@@ -541,7 +541,7 @@ This section will cover the steps used to setup the exploit, for more details on
 
         <img src="Images/VE6.png">
 
-4. (Optional) Use the [mona.py](https://github.com/corelan/mona) python program within Immunity Debugger to determine useful information about our target process. While the cyclic pattern from [exploit1.py] is in memory we can run the command `!mona findmsp` in the command line at the bottom of the Immunity Debugger GUI. **Note:** We must have sent the cyclic pattern and it must be present in the stack frame at the time we run this command!
+4. (Optional) Use the [mona.py](https://github.com/corelan/mona) python program within Immunity Debugger to determine useful information about our target process. While the cyclic pattern from [exploit1.py] is in memory, we can run the command `!mona findmsp` in the command line at the bottom of the Immunity Debugger GUI. **Note:** We must have sent the cyclic pattern and it must be present in the stack frame at the time we run this command!
 
     <img src="Images/VE7.png">
 
@@ -569,7 +569,7 @@ This section will cover the steps used to setup the exploit, for more details on
 		* `asc`: Search for an asci string.
 		* `bin`: Search for a binary string.
 		* `ptr`: Search for a pointer (memory address).
-		* `instr`: Search for a instruction.
+		* `instr`: Search for an instruction.
 		* `file`: Search for a file.
 	* `-s "<String>"`: Specify the string we are searching for.
 	* `-p <number>`: Limit amount of output to the number we specify (May need to increase this to find instructions at an executable location).
@@ -598,7 +598,7 @@ This section will cover the steps used to setup the exploit, for more details on
    ```
    !mona rop -m *.dll -n
    ```
-   * `-m *.dll`: Search through all dll files when building ROP chains.
+   * `-m *.dll`: Search through all DLL files when building ROP chains.
    * `-n`: Ignore all modules that start with a Null Byte.
 
     <img src="Images/VE11.png">
@@ -621,7 +621,7 @@ This section will cover the steps used to setup the exploit, for more details on
 
 11. Search for 3 or more `POP` instructions in a row followed by a return. This is because we need to remove the return address the call instruction pushes onto the stack, and the first 4 - 8 characters of the ASCII string we use to overflow the buffer. This is so we can more easily access the ROP chain we inject. 
 
-    1. Right click the Assembly View, Select `Search For ->
+    1. Right-click the Assembly View, Select `Search For ->
 
         <img src="Images/VE16.png">
 
@@ -707,7 +707,7 @@ This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we pr
     <img src="Images/VEC5.png">
 
 6. Find a new sequence of 3 `POP` instructions followed by a `RETN`
-   1. Right click the Assembly view and select `Search For -> Sequence of Commands`:
+   1. Right-click the Assembly view and select `Search For -> Sequence of Commands`:
 
         <img src="Images/VEC6.png">
     
@@ -739,7 +739,7 @@ This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we pr
         <img src="Images/VEC10.png">
 
 > [!IMPORTANT]
-> Notice how we **did not** hit the breakpoint, this means the exception was raised at the time we attempted to perform the indirect function call.
+> Notice how we **did not** hit the breakpoint; this means the exception was raised when we attempted to perform the indirect function call.
 
    4. We can try running this in Visual Studio attached to a debugger to confirm this exception is thrown at the Indirect Function Call and is due to address we overwrote the original function pointer with.
 
@@ -763,6 +763,10 @@ The mitigations we will be using in the following examination are:
 * [Control Flow Guard (CFG)](https://github.com/DaintyJet/VChat_CFG): This mitigation verifies that indirect calls or jumps are performed to locations contained in a table generated at compile time. Examples of indirect calls or jumps include function pointers being used to call a function, or if you are using `C++` virtual functions, which would be considered indirect calls as you index a table of function pointers. 
 * [Heap Integrity Validation](https://github.com/DaintyJet/VChat_Heap_Defense): This mitigation verifies the integrity of a heap when operations are performed on the heap itself, such as allocations or frees of heap objects.
 ### Individual Defenses: VChat Exploit 
+
+> [!NOTE]
+> In order for CFG on Windows to work, you must have both DEP and ASLR enabled. So, although neither DEP nor ASLR mitigate this class of attack, they are required for CFG to work at all.
+
 |Mitigation Level|Defense: Buffer Security Check (GS)|Defense: Data Execution Prevention (DEP)|Defense: Address Space Layout Randomization (ASLR) |Defense: SafeSEH| Defense: SEHOP | Defense: Heap Integrity Validation| Defense: Control Flow Guard (CFG)|
 |-|-|-|-|-|-|-|-|
 |No Effect|X| | |X |X | X| X| |
@@ -781,7 +785,7 @@ The mitigations we will be using in the following examination are:
 * `Defense: SafeSEH`: This does not affect our exploit as we do not leverage Structured Exception Handling.
 * `Defense: SEHOP`: This does not affect our exploit as we do not leverage Structured Exception Handling.
 * `Defense: Heap Integrity Validation`: This does not affect our exploit as we do not leverage the Windows Heap.
-* `Defense: Control Flow Guard`: This mitigation if fully effective as it designed to prevent the attacker from leveraging indirect calls or jumps as we do here.
+* `Defense: Control Flow Guard`: This mitigation is fully effective as it is designed to prevent the attacker from leveraging indirect calls or jumps, as we do here.
 > [!NOTE]
 > `Defense: Buffer Security Check (GS)`: If the application improperly initializes the global security cookie or contains additional vulnerabilities that can leak values on the stack, then this mitigation strategy can be bypassed.
 >
@@ -800,7 +804,7 @@ The mitigations we will be using in the following examination are:
 The following section discusses the source code of the VChat server, and should provide some insight as to why this exploit is possible. As the C language does not contain virtual functions natively we do not see the protection CFG would provide to the virtual function pointers.
 
 
-The first code snippet to be discuss concerns the reason the overflow is possible, when we are processing the `FUNCC` request we first allocate a 2048 byte buffer that will have up to 2048 bytes (characters) written to it. There is a memory leak here, but exploit that occurs in this scope, as we are just copying the received buffer into a newly allocated character buffer which will be passed to `Function5`. 
+The first code snippet to be discuss concerns the reason the overflow is possible, when we are processing the `FUNCC` request we first allocate a 2048 byte buffer that will have up to 2048 bytes (characters) written to it. There is a memory leak here, but an exploit occurs in this scope, as we are just copying the received buffer into a newly allocated character buffer, which will be passed to `Function5`. 
 ```c
 else if (strncmp(RecvBuf, "FUNCC", 5) == 0) {
 	/************************************************
