@@ -4,7 +4,7 @@
 ---
 > "Ensure control flow integrity of indirect calls." - Microsoft
 
-Control flow guard (CFG) is Windows' implementation of [Control Flow Integrity (CFI)](https://en.wikipedia.org/wiki/Control-flow_integrity). Which can be distinguished from a "perfect" CFI implementation that protects the integrity of all indirect and direct branches, **CFG focuses on indirect branches** which can be expressed as **Indirect function calls**. 
+Control flow guard (CFG) is Windows' implementation of [Control Flow Integrity (CFI)](https://en.wikipedia.org/wiki/Control-flow_integrity). The Windows implementation can be distinguished from a "perfect" CFI implementation that protects the integrity of all indirect and direct branches, the Windows CFG implementation **focuses on protecting indirect branches** which can be expressed as **indirect function calls**.
 
 > [!NOTE]
 > Indirect Function Calls are calls to functions made with function pointers; below is an example of an Indirect function call in a toy C program. We do not show the main function or the definition of `some_function` for brevity!
@@ -28,7 +28,7 @@ Control flow guard (CFG) is Windows' implementation of [Control Flow Integrity (
 ## What is CFI
 Control Flow Integrity (CFI) ensures that the flow of execution follows a predetermined path created at the compile time of the program. CFI, when implemented, fully protects both indirect and direct function calls [4]. Indirect function calls are those using function pointers stored in memory, usually as part of a structure or as a variable. Indirect function calls include calls to functions that are located in a known *static* region of memory (determined at link-time), and calls to functions which are dynamically linked. CFI when *fully-implemented* protects both the call to the target function, verifying the target's ID and the return from the target function to the callee, ensuring the ID of the function we are returning to is one of the expected values [4].
 
-There are implementations of CFI in [Clang](https://www.redhat.com/en/blog/fighting-exploits-control-flow-integrity-cfi-clang), which uses the Control-Flow graph at compile time to construct the whitelist for both indirect and direct function calls in addition to their returns [5][6]. This implementation ensures not only that a valid function address is targeted but also that the intended target is the one to which this function should be making a call. This implementation in Clang has been used on various programs compiled for [Android](https://source.android.com/docs/security/test/cfi) devices [7].
+There are implementations of CFI in [Clang](https://www.redhat.com/en/blog/fighting-exploits-control-flow-integrity-cfi-clang), which uses a control-flow graph at compile time to construct the whitelist for both indirect and direct function calls in addition to their returns [5][6]. This implementation ensures not only that a valid function address is targeted but also that the intended target is the one to which this function should be making a call. This implementation in Clang has been used on various programs compiled for [Android](https://source.android.com/docs/security/test/cfi) devices [7].
 
 > [!NOTE]
 > Clang's Implementation does not protect the backward edge (return) of a function call for x86-64 architectures [3].
@@ -57,22 +57,19 @@ Window's implementation of CFG uses both compile-time operations and runtime ope
     - **Handling the verification procedure**: If the target is invalid, an exception will be raised.
 
 > [!NOTE]
-> The CFG Bitmap contains a shared and a private region. The shared region stores information relating to the DLLs (shared modules) which are loaded by the process and is shared between multiple processes. While the private region stores references to local functions within the executable. [2][10].
+> The CFG Bitmap contains a shared and a private region. The shared region stores information relating to the DLLs (shared modules) which are loaded by the process and is shared between multiple processes. While the private region stores references to local functions within the executable [2][10].
 
 ![An example pseudocode of CFG implementation [1]](/Images/cfg-pseudocode.jpg)
 
 > [!IMPORTANT]
-> Programs that have CFG enabled will have a *large* virtual size, this is because the bitmaps 
+> Programs that have CFG enabled will have a *large* virtual size, this is because of the bitmaps that will be generated.
 ## Weaknesses
 According to [2]:
 > 1. CFGBitmap is stored in a fixed address and can be easily retrieved from user mode code.
 > 2. If the main executable does not have CFG enabled, the process is not protected by CFG even if it loaded a CFG-enabled module.
 > 3. If a process’s main executable has disabled DEP (the process’s ExecuteEnable is enabled by compiled with /NXCOMPAT:NO), it will bypass the CFG violation handle, even if the indirect call target address is invalid.
-> 4. Every bit in the CFGBitmap represents ~eight~ sixteen bytes in the process space. So if
-an invalid target call address has less than ~eight~ sixteen bytes from the valid function
-address, the CFG will think the target call address is “valid.”
-> 5. If the target function generated is dynamic (similar to JIT technology), the
-CFG implementation doesn’t protect it. This is because NtAllocVirtualMemory will set all “1”s in CFGBitmap regions for the allocated executable virtual memory space (described in 4.c.i). It’s possible that customizing the CFGBitmap via MiCfgMarkValidEntries can address this issue.
+> 4. Every bit in the CFGBitmap represents ~eight~ sixteen bytes in the process space. So if an invalid target call address has less than ~eight~ sixteen bytes from the valid function address, the CFG will think the target call address is “valid.”
+> 5. If the target function generated is dynamic (similar to JIT technology), the CFG implementation doesn’t protect it. This is because NtAllocVirtualMemory will set all “1”s in CFGBitmap regions for the allocated executable virtual memory space (described in 4.c.i). It’s possible that customizing the CFGBitmap via MiCfgMarkValidEntries can address this issue.
 
 Additional Weaknesses from [10]:
 > 1. Due to the implied trust granted to function pointers stored in *read-only* memory segments, if an attacker is able to modify those segments of memory and add a new entry to one like the Import Address Table, then they would be able to perform an indirect function call with it bypassing the CFG protections.
@@ -98,7 +95,7 @@ The following section will discuss the process of opening and configuring the st
 
     <img src="Images/ESAMain.png">
 
-3. Open the project properties `Project -> Properties`
+3. Open the project properties `Project -> Properties`.
 
     <img src="Images/ESAProp1.png">
 
@@ -115,7 +112,7 @@ The following section will discuss the process of opening and configuring the st
 
         <img src="Images/ESAProp4.png">
 
-   4. We also disable additional [*Security Development Lifecycle*](https://learn.microsoft.com/en-us/cpp/build/reference/sdl-enable-additional-security-checks?view=msvc-170) checks `/sdl-`, we do this as it is described as a **superset** of the *Security Checks* and overrides the `/GS-` configuration. 
+   4. We also disable additional [*Security Development Lifecycle*](https://learn.microsoft.com/en-us/cpp/build/reference/sdl-enable-additional-security-checks?view=msvc-170) checks `/sdl-`, we do this as it is described as a **superset** of the *Security Checks* and overrides the `/GS-` configuration.
 
         <img src="Images/ESAProp5.png">
 
@@ -127,17 +124,17 @@ The following section will discuss the process of opening and configuring the st
         <img src="Images/ESAProp6.png">
 
     <!-- > [!NOTE] -->
-    > The VC++ compiler may not allocate objects in the order they appear. Additionally, it may insert extra padding to preserve boundaries. We can see the padding behavior of structures based on a [/Zp Documentation](https://learn.microsoft.com/en-us/cpp/build/reference/zp-struct-member-alignment?view=msvc-170)
+    > The VC++ compiler may not allocate objects in the order they appear. Additionally, it may insert extra padding to preserve boundaries. We can see the padding behavior of structures based on a [/Zp Documentation](https://learn.microsoft.com/en-us/cpp/build/reference/zp-struct-member-alignment?view=msvc-170).
     > ![Padding](Images/StructPacking.png)
     > We can see that although our small buffer `buff` is 1 byte, due to padding, there are 2 bytes between it and the function pointer. If we were to change the Struct Alignment to 1 byte `/Zp1`, then they would be adjacent as shown below
     > ![alt text](Images/StructPacking2.png)
 
-5. Open the *Advanced* configuration window for the Linker `Linker -> Advanced`
+5. Open the *Advanced* configuration window for the Linker `Linker -> Advanced`.
     1. Ensure ASLR, the *Randomize Base Address* `/DYNAMICBASE` option is set, per the [Microsoft Documentation](https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-control-flow-guard?view=msvc-170) this linker option is required for CFG to work properly.
 
         <img src="Images/ESAProp7.png">
 
-   1. Ensure NoneXecutable memory pages are enabled, this is enabled by setting the *Data Execution Prevention* `/NXCOMPAT` option. It is not explicitly mentioned in Microsoft's documentation, however based on the observed behavior in this project and the findings of security researchers previously in [2] this being enabled is required. 
+   1. Ensure NoneXecutable memory pages are enabled, this is enabled by setting the *Data Execution Prevention* `/NXCOMPAT` option. It is not explicitly mentioned in Microsoft's documentation, however based on the observed behavior in this project and the findings of security researchers previously in [2] this being enabled is required.
 
         <img src="Images/ESAProp8.png">
 
@@ -166,15 +163,15 @@ The following section will build the standalone project and observe its behavior
 
 3. We have a number of preprocessor directives we can use to modify the behavior of the program. There are four that you need to be aware of; we control the behavior of the program by commenting or uncommenting them.
    * `#define E1 1`: The code will overflow the function pointer with the the *good_func* address which was already present; this acts like a control test case as it should always succeed unless we remove *good_func* from the whitelist.
-   * `#define E2 1`: The code will overflow the function pointer with the address of *bad_func*. This will succeed if there is an entry on the whitelist. 
+   * `#define E2 1`: The code will overflow the function pointer with the address of *bad_func*. This will succeed if there is an entry on the whitelist.
    * `#define E3 1`: The code will overflow the function pointer with an address offset into *bad_func*. This should fail if CFG is enabled.
-   * `#define EDIT_WHTLIST`: The code will remove both *good_func* and *bad_func* from the whitelist, and if CFG is enabled, all previous tests should fail. 
+   * `#define EDIT_WHTLIST`: The code will remove both *good_func* and *bad_func* from the whitelist, and if CFG is enabled, all previous tests should fail.
 4. We will run the program attached to the Visual Studio debugger for each of the test cases, this is so we can see the flow of the program's execution, and where exceptions were thrown.
-   1. Set a breakpoint at the indirect function call, this is done by *left-clicking* on the left-hand margin as shown below
+   1. Set a breakpoint at the indirect function call, this is done by *left-clicking* on the left-hand margin as shown below.
 
         <img src="Images/ESABuild3.png">
 
-   2. Start the Debugger for a Local Windows program
+   2. Start the Debugger for a Local Windows program.
 
         <img src="Images/ESABuild4.png">
 
@@ -185,7 +182,7 @@ The following section will build the standalone project and observe its behavior
 
         <img src="Images/ESABuild5.png">
 
-### Exercise 1 
+### Exercise 1
 1. Ensure CFG is disabled, navigate to the Properties windows and `C/C++ -> Code Generation`.
 
     <img src="Images/ESAE1.png">
@@ -200,10 +197,10 @@ The following section will build the standalone project and observe its behavior
 
     ```
 	ex.x(); // Need NX Compat enabled
-    00EB1847  call        dword ptr [ebp-4]  
+    00EB1847  call        dword ptr [ebp-4]
 
     return 1;
-    00EB184A  mov         eax,1  
+    00EB184A  mov         eax,1
     ```
 
 > [!NOTE]
@@ -227,20 +224,20 @@ The following section will build the standalone project and observe its behavior
 
     ```
 	    ex.x(); // Need NX Compat enabled
-    001E2277  mov         edx,dword ptr [ebp-8]  
-    001E227A  mov         dword ptr [ebp-4],edx  
-    001E227D  mov         ecx,dword ptr [ebp-4]  
-    001E2280  call        dword ptr [__guard_check_icall_fptr (01F0000h)]  
-    001E2286  call        dword ptr [ebp-4]  
+    001E2277  mov         edx,dword ptr [ebp-8]
+    001E227A  mov         dword ptr [ebp-4],edx
+    001E227D  mov         ecx,dword ptr [ebp-4]
+    001E2280  call        dword ptr [__guard_check_icall_fptr (01F0000h)]
+    001E2286  call        dword ptr [ebp-4]
 
         return 1;
-    001E2289  mov         eax,1  
+    001E2289  mov         eax,1
     ```
 
     <!-- > [!NOTE] -->
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
-9. Click step and observe we successfully jump to the entrypoint of the *good_func* function, a full example is again shown below. Be sure to click step-into from the C file, otherwise, we will need to step through the call to `__guard_check_icall_fptr` 
+9. Click step and observe we successfully jump to the entrypoint of the *good_func* function, a full example is again shown below. Be sure to click step-into from the C file, otherwise, we will need to step through the call to `__guard_check_icall_fptr`.
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/59e25c90-76f3-4d09-9f64-8446370e4215
 
@@ -271,14 +268,14 @@ The following section will build the standalone project and observe its behavior
 
     ```
     	ex.x(); // Need NX Compat enabled
-    001E1847  call        dword ptr [ebp-4]  
+    001E1847  call        dword ptr [ebp-4]
 
         return 1;
-    001E184A  mov         eax,1 
+    001E184A  mov         eax,1
     ```
 
 > [!NOTE]
-> You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`
+> You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`.
 
 6. Now we can click Step-Into and observe the results. We can see a full run-through in the video below; as we are performing the indirect function call directly with a call instruction we can click Step-Into from the disassembly or C view.
 
@@ -294,19 +291,19 @@ The following section will build the standalone project and observe its behavior
 
     ```
     	ex.x(); // Need NX Compat enabled
-    00BF2277  mov         edx,dword ptr [ebp-8]  
-    00BF227A  mov         dword ptr [ebp-4],edx  
-    00BF227D  mov         ecx,dword ptr [ebp-4]  
-    00BF2280  call        dword ptr [__guard_check_icall_fptr (0C00000h)]  
-    00BF2286  call        dword ptr [ebp-4]  
+    00BF2277  mov         edx,dword ptr [ebp-8]
+    00BF227A  mov         dword ptr [ebp-4],edx
+    00BF227D  mov         ecx,dword ptr [ebp-4]
+    00BF2280  call        dword ptr [__guard_check_icall_fptr (0C00000h)]
+    00BF2286  call        dword ptr [ebp-4]
 
         return 1;
-    00BF2289  mov         eax,1  
+    00BF2289  mov         eax,1
     ```
     <!-- > [!NOTE] -->
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
 
-9. Click step and observe we successfully jump to the entrypoint of *bad_func* even though it is not the original target of the indirect function call, this is because it is still in the whitelist of valid function entrypoints generated at compile time. We can see this in the video below. 
+9. Click step and observe we successfully jump to the entrypoint of *bad_func* even though it is not the original target of the indirect function call, this is because it is still in the whitelist of valid function entrypoints generated at compile time. We can see this in the video below.
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/9c1a943e-7816-4b6a-a23a-6d9e6e6b9a8a
 
@@ -333,14 +330,14 @@ The following section will build the standalone project and observe its behavior
 
     ```
         ex.x(); // Need NX Compat enabled
-    00DA1853  call        dword ptr [ebp-4]  
+    00DA1853  call        dword ptr [ebp-4]
 
         return 1;
-    00DA1856  mov         eax,1  
+    00DA1856  mov         eax,1
     ```
 
 > [!NOTE]
-> You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`
+> You can see the C code (and comments) preceded by their associated assembly. It is clear CFG is not enabled as `ex.x();` compiled directly to a call instruction `call        dword ptr [ebp-4]`.
 
 6. Click *Step-Into*, we can do this from either the disassembly or C source code view. Observe that we jump into protected part of the *bad_func* function. The video below show the full process.
 
@@ -359,14 +356,14 @@ The following section will build the standalone project and observe its behavior
 
     ```
         ex.x(); // Need NX Compat enabled
-    00AB2283  mov         edx,dword ptr [ebp-8]  
-    00AB2286  mov         dword ptr [ebp-4],edx  
-    00AB2289  mov         ecx,dword ptr [ebp-4]  
-    00AB228C  call        dword ptr [__guard_check_icall_fptr (0AC0000h)]  
-    00AB2292  call        dword ptr [ebp-4]  
+    00AB2283  mov         edx,dword ptr [ebp-8]
+    00AB2286  mov         dword ptr [ebp-4],edx
+    00AB2289  mov         ecx,dword ptr [ebp-4]
+    00AB228C  call        dword ptr [__guard_check_icall_fptr (0AC0000h)]
+    00AB2292  call        dword ptr [ebp-4]
 
         return 1;
-    00AB2295  mov         eax,1  
+    00AB2295  mov         eax,1
     ```
     <!-- > [!NOTE] -->
     > We can clearly see that CFG has been enabled since the indirect call has been expanded to support the check with the call to `__guard_check_icall_fptr` verifying the target address is a member of the Whitelist.
@@ -376,7 +373,7 @@ The following section will build the standalone project and observe its behavior
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/9f40da24-ac3d-4226-b34d-62ee548e48a1
 
     <!-- > [!NOTE] -->
-    > We can see the call to an address offset within a function is invalid. This is because the Whitelist contains the starting address of the function. If we attempt to perform an indirect jump to an address not contained in the whitelist the exception is thrown as was done in this case. 
+    > We can see the call to an address offset within a function is invalid. This is because the Whitelist contains the starting address of the function. If we attempt to perform an indirect jump to an address not contained in the whitelist the exception is thrown as was done in this case.
 <!--
 > [!IMPORTANT]
 > Based on Current Testing the NXCompat flag `/NXCOMPAT` is required, the DynamicBase did not affect the /guard:cf flag. This does not align with the comments that the `/DYNAMICBASE` linker flag is required from the official [Microsoft Documentation](https://learn.microsoft.com/en-us/cpp/build/reference/guard-enable-control-flow-guard?view=msvc-170). We were able to successfully raise a Invalid Indirect Call Exception from the standalone code with `/DYNAMICBASE:NO` set to disable ASLR.
@@ -386,7 +383,7 @@ This section will use a VChat process with CFG enabled, be sure to disable it fo
 
 ### Dumpbin
 1. Enable CFG in VChat and recompile the binary.
-2. Open the Developer Powershell for Visual Studio
+2. Open the Developer Powershell for Visual Studio.
 
     <img src="Images/EDB1.png">
 
@@ -427,11 +424,11 @@ This section will use a VChat process with CFG enabled, be sure to disable it fo
 ### Process Explorer
 1. Enable CFG in VChat and recompile the binary if this has not already been done.
 2. Start VChat.
-3. Open Process Explorer
+3. Open Process Explorer.
 
     <img src="Images/EPE1.png">
 
-4. Right-click an unoccupied space and select *Select Column*
+4. Right-click an unoccupied space and select *Select Column*.
 
     <img src="Images/EPE2.png">
 
@@ -439,22 +436,22 @@ This section will use a VChat process with CFG enabled, be sure to disable it fo
 
     <img src="Images/EPE3.png">
 
-6. Observe VChat has CFG Enabled (And DEP)
+6. Observe VChat has CFG Enabled (And DEP).
 
     <img src="Images/EPE4.png">
 
 > [!IMPORTANT]
-> Programs that have CFG enabled will have a *large* virtual size; this is because the required space to store the bitmap of the entire address space available to the process is *reserved* in memory. They are not in-use or loaded but they still affect the process's virtual size due to the fact they could be loaded into memory. 
+> Programs that have CFG enabled will have a *large* virtual size; this is because the required space to store the bitmap of the entire address space available to the process is *reserved* in memory. They are not in-use or loaded but they still affect the process's virtual size due to the fact they could be loaded into memory.
 >
 > In 32-bit programs we require 32 MB on x86 systems (48 MB if `/LARGEADDRESAWARE`). A 32-bit program on a x86 system will require 2 TB (For Windows DLLs) + 64 MB (For Executable). A 64-bit process requires 2 TB.
 
 ### Mona.py
 1. Enable CFG in VChat and recompile the binary if this has not already been done.
-2. Open Immunity Debugger
+2. Open Immunity Debugger.
 
     <img src="Images/EM1.png">
 
-3. Launch and attach VChat to Immunity Debugger
+3. Launch and attach VChat to Immunity Debugger.
 
     <img src="Images/EM2.png">
 
@@ -473,7 +470,7 @@ This section will use a VChat process with CFG enabled, be sure to disable it fo
 This section will use a modified version of the [VChat TRUN ROP](https://github.com/DaintyJet/VChat_TRUN_ROP) walkthrough, as we will use CFG to guard against ROP attacks, as ASLR is enabled through the randomizing of the base address which is required for the CFG implemented by Windows to work and throw exceptions when accessing arbitrary memory locations. We will instead be exploiting the `FUNCC` command that has been added to the VChat server.
 ### Initial VChat Configuration
 1. Open the VChat Visual Studio Project.
- 
+
     <img src="Images/S1.png">
 
 2. Open the VChat project in Visual Studio and select `Project -> Properties`.
@@ -484,12 +481,12 @@ This section will use a modified version of the [VChat TRUN ROP](https://github.
 
     <img src="Images/S3.png">
 
-4. Open the `Linker -> Advanced` configuration window and enable *Data Execution Protection* DEP and *Randomized Base Address* (ASLR). Once done apply the changes and close the configuration window. 
+4. Open the `Linker -> Advanced` configuration window and enable *Data Execution Protection* DEP and *Randomized Base Address* (ASLR). Once done apply the changes and close the configuration window.
 
     <img src="Images/S4.png">
 
     <!-- > [!NOTE] -->
-    > As DEP and ASLR are not the focus of this lab, you can keep this disabled or enable it. This does not affect the exploitation process until we enable CFG later. 
+    > As DEP and ASLR are not the focus of this lab, you can keep this disabled or enable it. This does not affect the exploitation process until we enable CFG later.
 
 5. Build the project with the shortcut `CTL+B` or by opening the `Build` window as shown below.
 
@@ -503,7 +500,7 @@ This section will use a modified version of the [VChat TRUN ROP](https://github.
 This section will cover the steps used to setup the exploit, for more details on ROP Attacks see [VChat_ROP_Intro](https://github.com/DaintyJet/VChat_ROP_INTRO), and for a more detailed explanation of the exploitation process please see [VChat_TRUN_ROP](https://github.com/DaintyJet/VChat_TRUN_ROP) for a similar exploit. The main difference between this exploit and the *VChat_TRUN_ROP* is this exploit overflows a function pointer that is called, whereas the *VChat_TRUN_ROP* exploit overflows a return address.
 
 > [!NOTE]
-> At first CFG is disabled, but we have enabled both DEP and NX to smooth over the later modifications needed when CFG is enabled. 
+> At first CFG is disabled, but we have enabled both DEP and NX to smooth over the later modifications needed when CFG is enabled.
 
 1. Generate a Cyclic Pattern; this is done so we will be able to tell where in memory the *Function Pointer* is stored so we can overwrite it with an address to start the ROP chain. We will use the [`pattern_create.rb`](https://github.com/rapid7/metasploit-framework/blob/master/tools/exploit/pattern_create.rb) in the Kali VM in order to find the *exact* location the function pointer is in by examining the value stored in the registers. We will use the following command on the Kali Machine:
 
@@ -511,20 +508,20 @@ This section will cover the steps used to setup the exploit, for more details on
     /usr/share/metasploit-framework/tools/exploit/pattern_create.rb -l 5000
     ```
 
-2. Modify your exploit code to reflect [exploit1.py](./SRC/Exploits/exploit1.py) using the output from the *pattern_create.rb* command used previously. This script will inject the Cyclic Patterns into the VChat's stack. Run the exploit and observe the results in Immunity Debugger.  
-   1. Attach Immunity Debugger to the VChat Process. 
+2. Modify your exploit code to reflect [exploit1.py](./SRC/Exploits/exploit1.py) using the output from the *pattern_create.rb* command used previously. This script will inject the Cyclic Patterns into the VChat's stack. Run the exploit and observe the results in Immunity Debugger.
+   1. Attach Immunity Debugger to the VChat Process.
 
         <img src="Images/VE1.png">
 
    2. Click the red arrow to start executing
 
         <img src="Images/VE2.png">
-    
+
     3. Run the [exploit1.py](./SRC/Exploits/exploit1.py) script on the Kali machine targeting the machine where the VChat server is hosted. You may need to run the command `chmod +x exploit1.py` to make use of the shebang line.
 
         <img src="Images/VE3.png">
-        
-    4. Observe the results of running [exploit1.py](./SRC/Exploits/exploit1.py), notice that an exception has been raised, this is likely due to the fact we have DEP (NX) enabled or we are jumping to an arbitrary memeory address (Read or Write Exceptions). 
+
+    4. Observe the results of running [exploit1.py](./SRC/Exploits/exploit1.py), notice that an exception has been raised, this is likely due to the fact we have DEP (NX) enabled or we are jumping to an arbitrary memeory address (Read or Write Exceptions).
 
         <img src="Images/VE5.png">
 
@@ -581,11 +578,11 @@ This section will cover the steps used to setup the exploit, for more details on
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/683a4be6-534a-41c5-9ed6-203c31e93d32
 
-   1. Use the black *Go To Address in Disassembler* and enter in the address of the `ret` instruction you chose previously
+   1. Use the black *Go To Address in Disassembler* and enter in the address of the `ret` instruction you chose previously.
 
         <img src="Images/VE12.png">
 
-   2. Add a breakpoint. 
+   2. Add a breakpoint.
 
         <img src="Images/VE13.png">
 
@@ -603,11 +600,11 @@ This section will cover the steps used to setup the exploit, for more details on
 
     <img src="Images/VE11.png">
 
-10. Modify your exploit to reflect [exploit4.py](./SRC/Exploits/exploit4.py), we are using the function from the `rop_chains.txt`. We will need to be sure the return is `return b''.join(struct.pack('<I', _) for _ in rop_gadgets)` as without converting it to a byte string, we will receive errors! 
+10. Modify your exploit to reflect [exploit4.py](./SRC/Exploits/exploit4.py), we are using the function from the `rop_chains.txt`. We will need to be sure the return is `return b''.join(struct.pack('<I', _) for _ in rop_gadgets)` as without converting it to a byte string, we will receive errors!
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/d78f3f8b-833b-4398-9ab0-f45d4bc4588e
 
-    1. Use the black *Go To Address in Disassembler* and enter in the address of the `ret` instruction you chose previously
+    1. Use the black *Go To Address in Disassembler* and enter in the address of the `ret` instruction you chose previously.
 
         <img src="Images/VE12.png">
 
@@ -619,7 +616,7 @@ This section will cover the steps used to setup the exploit, for more details on
 
         <img src="Images/VE18.png">
 
-11. Search for 3 or more `POP` instructions in a row followed by a return. This is because we need to remove the return address the call instruction pushes onto the stack, and the first 4 - 8 characters of the ASCII string we use to overflow the buffer. This is so we can more easily access the ROP chain we inject. 
+11. Search for 3 or more `POP` instructions in a row followed by a return. This is because we need to remove the return address the call instruction pushes onto the stack, and the first 4 - 8 characters of the ASCII string we use to overflow the buffer. This is so we can more easily access the ROP chain we inject.
 
     1. Right-click the Assembly View, Select `Search For ->
 
@@ -632,9 +629,9 @@ This section will cover the steps used to setup the exploit, for more details on
         POP R32
         RETN
         ```
-        * `POP R32`: Searches for a POP instruction that stores the result in a 32-bit register
-        * `RETN`: Return instruction
-    3. Save the address of the first POP instruction, we can see in this case the addresses are located in `Essfun` which does not have ASLR enabled. This will replace the 
+        * `POP R32`: Searches for a POP instruction that stores the result in a 32-bit register.
+        * `RETN`: Return instruction.
+    3. Save the address of the first POP instruction, we can see in this case the addresses are located in `Essfun` which does not have ASLR enabled. <!-- This will replace the function return address. -->
 
         <img src="Images/VE17.png">
 
@@ -650,7 +647,7 @@ This section will cover the steps used to setup the exploit, for more details on
 
         <img src="Images/VE19.png">
 
-    3. Observe the behavior of the program, we can see the ROP chain is now accessable and step through it till the call to `VirtualProtect(...)`, Be sure to not to step into the function call the `VirtualProtect(...)` as this will crash the process. 
+    3. Observe the behavior of the program, we can see the ROP chain is now accessable and step through it till the call to `VirtualProtect(...)`, Be sure to not to step into the function call the `VirtualProtect(...)` as this will crash the process.
 
         <img src="Images/VE20.png">
 
@@ -665,8 +662,8 @@ This section will cover the steps used to setup the exploit, for more details on
 
     PAYLOAD = (
         b'FUNCC /.' +
-        create_rop_chain() + 
-        b'\x90' * buff + 
+        create_rop_chain() +
+        b'\x90' * buff +
         SHELL +
         b'\x90' * (792 - (len(create_rop_chain()) + len(SHELL) + buff)) +
         struct.pack('<L', 0x00403C02) # This will need to be a function in a module with CFG enabled
@@ -675,15 +672,15 @@ This section will cover the steps used to setup the exploit, for more details on
 > [!NOTE]
 > We put the Shellcode after 2 bytes or more of `NOP` instructions to prevent any conflicts/overwrites the VirtualProtect function would cause.
 
-15. Start a Netcat listener on the Kali machine in a new terminal. 
+1.  Start a Netcat listener on the Kali machine in a new terminal.
     ```
     $ nc -l -v -p 8080
     ```
-16. Run the Exploit and observe the results! 
+2.  Run the Exploit and observe the results!
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/5eb82fe9-ffdd-433f-a7bf-a8b7b69ddbbf
 
-### CFG Enabled 
+### CFG Enabled
 This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we previously created. However, in this scenario we will enable the CFG protections we have previously disabled. This also means if you chose to do the previous section with DEP and ASLR disabled you will also need to enabled those protections for CFG to work properly and raise exceptions.
 
 1. Open the VChat project in Visual Studio and select `Project -> Properties`.
@@ -706,17 +703,17 @@ This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we pr
 
     <img src="Images/VEC5.png">
 
-6. Find a new sequence of 3 `POP` instructions followed by a `RETN`
+6. Find a new sequence of 3 `POP` instructions followed by a `RETN`.
    1. Right-click the Assembly view and select `Search For -> Sequence of Commands`:
 
         <img src="Images/VEC6.png">
-    
-   2. Search for the set of commands
+
+   2. Search for the set of commands.
 
         <img src="Images/VEC7.png">
 
-        * `POP R32`: Searches for a POP instruction that stores the result in a 32-bit register
-        * `RETN`: Return instruction
+        * `POP R32`: Searches for a POP instruction that stores the result in a 32-bit register.
+        * `RETN`: Return instruction.
 
     3. Copy the address of the first POP instruction.
 
@@ -726,7 +723,7 @@ This section will use the [exploit6.py](./SRC/Exploits/exploit6.py) script we pr
 
     https://github.com/DaintyJet/VChat_CFG/assets/60448620/1948ff07-ca42-4d95-aa6b-1864109b072a
 
-   1. Start a Netcat listener on the Kali machine in a new terminal. 
+   1. Start a Netcat listener on the Kali machine in a new terminal.
     ```
     $ nc -l -v -p 8080
     ```
