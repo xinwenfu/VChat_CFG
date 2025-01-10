@@ -755,11 +755,11 @@ The mitigations we will be using in the following examination are:
 * [Buffer Security Check (GS)](https://github.com/DaintyJet/VChat_Security_Cookies): Security Cookies are inserted on the stack to detect when critical data such as the base pointer, return address or arguments have been overflowed. Integrity is checked on function return.
 * [Data Execution Prevention (DEP)](https://github.com/DaintyJet/VChat_DEP_Intro): Uses paged memory protection to mark all non-code (.text) sections as non-executable. This prevents shellcode on the stack or heap from being executed, as an exception will be raised.
 * [Address Space Layout Randomization (ASLR)](https://github.com/DaintyJet/VChat_ASLR_Intro): This mitigation makes it harder to locate where functions and datastructures are located as their region's starting address will be randomized. This is only done when the process is loaded, and if a DLL has ASLR enabled it will only have it's addresses randomized again when it is no longer in use and has been unloaded from memory.
-* [SafeSEH](https://github.com/DaintyJet/VChat_SEH): This is a protection for the Structured Exception Handing mechanism in Windows. It validates that the exception handler we would like to execute is contained in a table generated at compile time. 
+* [SafeSEH](https://github.com/DaintyJet/VChat_SEH): This is a protection for the Structured Exception Handing mechanism in Windows. It validates that the exception handler we would like to execute is contained in a table generated at compile time.
 * [SEHOP](https://github.com/DaintyJet/VChat_SEH): This is a protection for the Structured Exception Handing mechanism in Windows. It validates the integrity of the SEH chain during a runtime check.
-* [Control Flow Guard (CFG)](https://github.com/DaintyJet/VChat_CFG): This mitigation verifies that indirect calls or jumps are performed to locations contained in a table generated at compile time. Examples of indirect calls or jumps include function pointers being used to call a function, or if you are using `C++` virtual functions, which would be considered indirect calls as you index a table of function pointers. 
+* [Control Flow Guard (CFG)](https://github.com/DaintyJet/VChat_CFG): This mitigation verifies that indirect calls or jumps are performed to locations contained in a table generated at compile time. Examples of indirect calls or jumps include function pointers being used to call a function, or if you are using `C++` virtual functions, which would be considered indirect calls as you index a table of function pointers.
 * [Heap Integrity Validation](https://github.com/DaintyJet/VChat_Heap_Defense): This mitigation verifies the integrity of a heap when operations are performed on the heap itself, such as allocations or frees of heap objects.
-### Individual Defenses: VChat Exploit 
+### Individual Defenses: VChat Exploit
 
 > [!NOTE]
 > In order for CFG on Windows to work, you must have both DEP and ASLR enabled. So, although neither DEP nor ASLR mitigate this class of attack, they are required for CFG to work at all.
@@ -793,7 +793,7 @@ The mitigations we will be using in the following examination are:
 |Defense: Control Flow Guard|**No Increase**: We are not overwriting the return address of a function to gain control over the flow of execution. This does not affect CFG.|**Partial Increased Security**: DEP is bypassed with the ROP chain but this increases the complexity of the exploit.|**Partial Increased Security**: ASLR randomizes the address of gadgets between executions or system boots DLLs will not have their addresses randomized unless they are fully unloaded.|**No Increase**: The SEH feature is not exploited.|**No Increase**: The SEH feature is not exploited.|**No Increase**: The Windows Heap is not exploited.|X| |
 
 
-> [!NOTE] 
+> [!NOTE]
 > We omit repetitive rows representing the ineffective mitigation strategies as their cases are already covered.
 
 
@@ -801,7 +801,7 @@ The mitigations we will be using in the following examination are:
 The following section discusses the source code of the VChat server, and should provide some insight as to why this exploit is possible. As the C language does not contain virtual functions natively we do not see the protection CFG would provide to the virtual function pointers.
 
 
-The first code snippet to be discuss concerns the reason the overflow is possible, when we are processing the `FUNCC` request we first allocate a 2048 byte buffer that will have up to 2048 bytes (characters) written to it. There is a memory leak here, but an exploit occurs in this scope, as we are just copying the received buffer into a newly allocated character buffer, which will be passed to `Function5`. 
+The first code snippet to be discuss concerns the reason the overflow is possible, when we are processing the `FUNCC` request we first allocate a 2048 byte buffer that will have up to 2048 bytes (characters) written to it. There is a memory leak here, but an exploit occurs in this scope, as we are just copying the received buffer into a newly allocated character buffer, which will be passed to `Function5`.
 ```c
 else if (strncmp(RecvBuf, "FUNCC", 5) == 0) {
 	/************************************************
@@ -829,7 +829,7 @@ typedef struct {
 } function_auth;
 ```
 
-The following function is where the budder overflow and indirect function call occur. As the previously mentioned structure is used to store both the target buffer and the indirect function call when the buffer `user_auth.buff` is overflowed through the use of unbounded copy in `strcpy`, the function pointer `user_auth.tgt_func` will be overwritten. As the indirect function call is performed before `Function5` returns so we are not overflowing the return address to modify the flow of control. This also means we are not going to be adjusting the ESP, or EBP registers with the function epilog of `leave` and `retn`. When we overflow the function if we are not using an address of a function entrypoint then we will also not be using the function entrypoint which adjusts the ESP and EBP in that manner; this is one of the reasons our ROP exploit in this case looks a bit different from the previous implementation.  
+The following function is where the budder overflow and indirect function call occur. As the previously mentioned structure is used to store both the target buffer and the indirect function call when the buffer `user_auth.buff` is overflowed through the use of unbounded copy in `strcpy`, the function pointer `user_auth.tgt_func` will be overwritten. As the indirect function call is performed before `Function5` returns so we are not overflowing the return address to modify the flow of control. This also means we are not going to be adjusting the ESP, or EBP registers with the function epilog of `leave` and `retn`. When we overflow the function if we are not using an address of a function entrypoint then we will also not be using the function entrypoint which adjusts the ESP and EBP in that manner; this is one of the reasons our ROP exploit in this case looks a bit different from the previous implementation.
 ```c
 void Function5(char* Input) {
 	function_auth usr_auth;
@@ -838,7 +838,7 @@ void Function5(char* Input) {
 	strcpy(usr_auth.buff, Input);
 
 	/* Call function pointer */
-	usr_auth.tgt_func(); 
+	usr_auth.tgt_func();
 	return;
 }
 ```
