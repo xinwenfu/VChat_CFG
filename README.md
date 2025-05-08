@@ -4,10 +4,10 @@
 ---
 > "Ensure control flow integrity of indirect calls." - Microsoft
 
-Control flow guard (CFG) is Windows' implementation of [Control Flow Integrity (CFI)](https://en.wikipedia.org/wiki/Control-flow_integrity). The Windows implementation can be distinguished from a "perfect" CFI implementation that protects the integrity of all indirect and direct branches, the Windows CFG implementation **focuses on protecting indirect branches** which can be expressed as **indirect function calls**.
+Control flow guard (CFG) is Windows' implementation of [Control Flow Integrity (CFI)](https://en.wikipedia.org/wiki/Control-flow_integrity). The Windows implementation can be distinguished from a "perfect" CFI implementation that protects the integrity of all indirect and direct branches. The Windows CFG implementation **focuses on protecting indirect branches** which can be expressed as **indirect function calls**.
 
 > [!NOTE]
-> Indirect Function Calls are calls to functions made with function pointers; below is an example of an Indirect function call in a toy C program. We do not show the main function or the definition of `some_function` for brevity!
+> Indirect Function Calls are calls to functions made with function pointers. Below is an example of an Indirect function call in a toy C program. We do not show the main function or the definition of `some_function` for brevity!
 > ```c
 >   // This is a typedef of a function pointer to
 >   // make the allocation of an object easier!
