@@ -151,6 +151,7 @@ The following section will discuss the process of opening and configuring the st
 > __declspec(guard(suppress)) void funcName(int arg1) { ... }
 > ```
 > The `__declspec(guard(suppress))` part of the declaration makes it so the CFG table does not include this function as a valid destination and marks is differently such that it will fail.
+
 ### Building and Running
 The following section will build the standalone project and observe its behavior when modifying the project properties discussed earlier and running various indirect function calls.
 
